@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Keokuk Football Analytics</title>
+<meta name="description" content="Live play logging for Keokuk Football by D.A.D.S.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KFK Analytics">
+<meta name="theme-color" content="#3B0066">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.jpg">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f5; --bg3: #eeeeee;
+    --text: #111; --text2: #555; --text3: #999;
+    --border: #ddd; --border2: #ccc;
+    --purple: #6A0DAD; --purple-dark: #3B0066; --purple-light: #EDE0FF;
+    --purple2: #8B2FC9; --green: #2E7D32;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#1a1a1a; --bg2:#252525; --bg3:#303030;
+      --text:#f0f0f0; --text2:#aaa; --text3:#666;
+      --border:#3a3a3a; --border2:#4a4a4a; --purple-light:#2D1A45;
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+  .app { max-width:480px; margin:0 auto; padding:12px; }
+
+  /* TOP BAR */
+  .top-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:10px 14px; background:var(--purple-dark); border-radius:var(--radius-lg); }
+  .top-bar-left { display:flex; align-items:center; gap:10px; }
+  .helmet-logo { width:48px; height:48px; object-fit:contain; border-radius:6px; flex-shrink:0; }
+  .top-bar-titles { display:flex; flex-direction:column; }
+  .top-bar-main { font-size:14px; font-weight:700; color:#E0C8FF; line-height:1.2; letter-spacing:0.2px; }
+  .top-bar-sub { font-size:10px; font-weight:600; color:rgba(224,200,255,0.7); letter-spacing:1.5px; text-transform:uppercase; margin-top:2px; }
+  .clock-row { display:flex; gap:5px; align-items:center; }
+  .clock-row select { background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.3); border-radius:6px; padding:5px 6px; font-size:12px; -webkit-appearance:none; appearance:none; }
+  .clock-row select option { background:#3B0066; color:#fff; }
+
+  /* TABS */
+  .tab-row { display:flex; gap:5px; margin-bottom:14px; }
+  .tab { flex:1; padding:8px 4px; font-size:12px; font-weight:600; border:1px solid var(--border2); border-radius:var(--radius); background:var(--bg); color:var(--text2); cursor:pointer; text-align:center; transition:all 0.15s; user-select:none; -webkit-tap-highlight-color:transparent; }
+  .tab.active { background:var(--purple); color:#fff; border-color:var(--purple); }
+  .tab:active { opacity:0.8; transform:scale(0.97); }
+  .section { display:none; }
+  .section.active { display:block; }
+
+  /* VOICE MODE */
+  .voice-mode { display:flex; flex-direction:column; align-items:center; padding:8px 0 4px; }
+  .mic-ring { position:relative; display:flex; align-items:center; justify-content:center; }
+  .mic-main { width:88px; height:88px; border-radius:50%; border:none; cursor:pointer; background:var(--purple); display:flex; align-items:center; justify-content:center; transition:all 0.15s; -webkit-tap-highlight-color:transparent; box-shadow:0 4px 16px rgba(106,13,173,0.35); }
+  .mic-main.listening { background:#cc0000; box-shadow:0 0 0 0 rgba(204,0,0,0.4); animation:ripple 1.2s infinite; }
+  .mic-main.st-mode { background:var(--green); box-shadow:0 4px 16px rgba(46,125,50,0.35); }
+  .mic-main.st-mode.listening { background:#cc0000; }
+  .mic-main.def-mode { background:var(--purple2); box-shadow:0 4px 16px rgba(139,47,201,0.35); }
+  .mic-main.def-mode.listening { background:#cc0000; }
+  @keyframes ripple { 0%{box-shadow:0 0 0 0 rgba(204,0,0,0.5)} 70%{box-shadow:0 0 0 20px rgba(204,0,0,0)} 100%{box-shadow:0 0 0 0 rgba(204,0,0,0)} }
+  .mic-main svg { width:36px; height:36px; fill:#fff; }
+  .mic-label { margin-top:10px; font-size:13px; font-weight:600; color:var(--text2); }
+  .mic-hint  { margin-top:4px; font-size:11px; color:var(--text3); text-align:center; line-height:1.5; max-width:280px; }
+
+  /* TRANSCRIPT BOX */
+  .transcript-box { width:100%; margin-top:14px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px 14px; min-height:60px; }
+  .transcript-raw { font-size:14px; color:var(--text); line-height:1.6; min-height:22px; font-style:italic; }
+  .transcript-raw.empty { color:var(--text3); font-style:normal; }
+
+  /* PARSED PREVIEW */
+  .parsed-preview { width:100%; margin-top:10px; }
+  .parsed-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .parsed-grid.three { grid-template-columns:1fr 1fr 1fr; }
+  .pf { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:7px 10px; }
+  .pf-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text3); margin-bottom:3px; }
+  .pf-val { font-size:13px; color:var(--text); font-weight:600; min-height:18px; }
+  .pf-val.empty { color:var(--text3); font-weight:400; font-style:italic; font-size:12px; }
+  .pf-val.filled { color:var(--purple); }
+  .pf-val.filled.green { color:var(--green); }
+
+  /* EDIT DRAWER */
+  .edit-drawer { width:100%; margin-top:10px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; }
+  .edit-toggle { width:100%; padding:10px 14px; background:none; border:none; font-size:12px; font-weight:600; color:var(--text2); cursor:pointer; display:flex; align-items:center; justify-content:space-between; }
+  .edit-toggle .arrow { transition:transform 0.2s; }
+  .edit-toggle .arrow.open { transform:rotate(180deg); }
+  .edit-fields { display:none; padding:12px; border-top:1px solid var(--border); }
+  .edit-fields.open { display:block; }
+  .field-group { margin-bottom:8px; }
+  .field-label { font-size:10px; font-weight:700; color:var(--text2); margin-bottom:3px; text-transform:uppercase; letter-spacing:0.4px; }
+  select, input[type=text], input[type=number], textarea {
+    width:100%; padding:8px 10px; font-size:13px;
+    border:1px solid var(--border); border-radius:var(--radius);
+    background:var(--bg); color:var(--text);
+    -webkit-appearance:none; appearance:none;
+  }
+  select:focus, input:focus, textarea:focus { outline:none; border-color:var(--purple); }
+  select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23999' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 8px center; padding-right:26px; }
+  textarea { resize:vertical; min-height:48px; font-family:inherit; }
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+
+  /* ACTION BUTTONS */
+  .action-row { display:flex; gap:8px; margin-top:12px; }
+  .btn-log { flex:3; padding:14px; background:var(--purple); color:#fff; border:none; border-radius:var(--radius-lg); font-size:15px; font-weight:700; cursor:pointer; transition:all 0.15s; -webkit-tap-highlight-color:transparent; }
+  .btn-log:active { transform:scale(0.98); opacity:0.9; }
+  .btn-log.defense { background:var(--purple2); }
+  .btn-log.st      { background:var(--green); }
+  .btn-discard { flex:1; padding:14px; background:var(--bg2); color:var(--text2); border:1px solid var(--border); border-radius:var(--radius-lg); font-size:13px; font-weight:600; cursor:pointer; }
+
+  /* TEMPLATE HINT */
+  .template-card { background:var(--purple-light); border:1px solid rgba(106,13,173,0.2); border-radius:var(--radius-lg); padding:12px 14px; margin-bottom:14px; }
+  .template-card h3 { font-size:11px; font-weight:700; color:var(--purple); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+  .template-card p { font-size:12px; color:var(--text2); line-height:1.7; }
+  .template-card code { background:rgba(106,13,173,0.1); border-radius:4px; padding:1px 5px; font-size:11px; color:var(--purple); }
+
+  /* LOG TAB */
+  .stat-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px; }
+  .stat-card { background:var(--bg2); border-radius:var(--radius); padding:12px 8px; text-align:center; }
+  .stat-card .sv { font-size:24px; font-weight:600; color:var(--text); }
+  .stat-card .sl { font-size:10px; color:var(--text3); margin-top:2px; text-transform:uppercase; letter-spacing:0.4px; }
+  .log-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .log-header span { font-size:13px; font-weight:600; color:var(--text); }
+  .export-btn { font-size:12px; font-weight:600; padding:6px 12px; border:1px solid var(--purple); border-radius:var(--radius); background:none; color:var(--purple); cursor:pointer; }
+  .play-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:10px 12px; margin-bottom:8px; position:relative; }
+  .play-meta { font-size:10px; color:var(--text3); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
+  .play-summary { font-size:12px; color:var(--text); line-height:1.7; padding-right:24px; }
+  .del-btn { position:absolute; top:10px; right:10px; background:none; border:none; font-size:18px; color:var(--text3); cursor:pointer; line-height:1; padding:2px; }
+  .empty-log { text-align:center; padding:40px 16px; color:var(--text3); font-size:13px; line-height:2; }
+  .badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; letter-spacing:0.5px; margin-right:4px; }
+  .badge-off { background:var(--purple); color:#fff; }
+  .badge-def { background:var(--purple2); color:#fff; }
+  .badge-st  { background:var(--green); color:#fff; }
+
+  /* SAVE BAR */
+  .save-bar { display:flex; align-items:center; justify-content:space-between; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; font-size:12px; color:var(--text2); }
+  .save-dot { width:8px; height:8px; border-radius:50%; background:#4caf50; flex-shrink:0; display:inline-block; margin-right:6px; }
+  .save-dot.saving { background:#ff9800; animation:blink 0.6s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .clear-btn { font-size:11px; font-weight:600; padding:4px 10px; border:1px solid #c00; border-radius:var(--radius); background:none; color:#c00; cursor:pointer; }
+  .no-support { background:#fff3cd; color:#664d03; border:1px solid #ffecb5; border-radius:var(--radius); padding:10px 12px; font-size:12px; margin-bottom:12px; display:none; }
+
+  /* STOPWATCH */
+  .sw-panel { background:var(--purple-dark); border-radius:var(--radius-lg); padding:12px 16px; margin-bottom:12px; color:#fff; display:none; }
+  .sw-display { font-size:40px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:2px; text-align:center; margin:8px 0; }
+  .sw-btns { display:flex; gap:8px; }
+  .sw-btns button { flex:1; padding:11px; border:none; border-radius:var(--radius); font-size:14px; font-weight:700; cursor:pointer; }
+  .sw-start { background:var(--purple); color:#fff; }
+  .sw-stop  { background:#555; color:#fff; }
+  .sw-reset { background:rgba(255,255,255,0.1); color:#fff; font-size:12px; flex:0.6!important; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gKgSUNDX1BST0ZJTEUAAQEAAAKQbGNtcwQwAABtbnRyUkdCIFhZWiAH4gAEAAwAEwAHAAlhY3NwQVBQTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLWxjbXMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAtkZXNjAAABCAAAADhjcHJ0AAABQAAAAE53dHB0AAABkAAAABRjaGFkAAABpAAAACxyWFlaAAAB0AAAABRiWFlaAAAB5AAAABRnWFlaAAAB+AAAABRyVFJDAAACDAAAACBnVFJDAAACLAAAACBiVFJDAAACTAAAACBjaHJtAAACbAAAACRtbHVjAAAAAAAAAAEAAAAMZW5VUwAAABwAAAAcAHMAUgBHAEIAIABiAHUAaQBsAHQALQBpAG4AAG1sdWMAAAAAAAAAAQAAAAxlblVTAAAAMgAAABwATgBvACAAYwBvAHAAeQByAGkAZwBoAHQALAAgAHUAcwBlACAAZgByAGUAZQBsAHkAAAAAWFlaIAAAAAAAAPbWAAEAAAAA0y1zZjMyAAAAAAABDEoAAAXj///zKgAAB5sAAP2H///7ov///aMAAAPYAADAlFhZWiAAAAAAAABvlAAAOO4AAAOQWFlaIAAAAAAAACSdAAAPgwAAtr5YWVogAAAAAAAAYqUAALeQAAAY3nBhcmEAAAAAAAMAAAACZmYAAPKnAAANWQAAE9AAAApbcGFyYQAAAAAAAwAAAAJmZgAA8qcAAA1ZAAAT0AAACltwYXJhAAAAAAADAAAAAmZmAADypwAADVkAABPQAAAKW2Nocm0AAAAAAAMAAAAAo9cAAFR7AABMzQAAmZoAACZmAAAPXP/bAEMABQMEBAQDBQQEBAUFBQYHDAgHBwcHDwsLCQwRDxISEQ8RERMWHBcTFBoVEREYIRgaHR0fHx8TFyIkIh4kHB4fHv/bAEMBBQUFBwYHDggIDh4UERQeHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHv/CABEIATgBOAMBIgACEQEDEQH/xAAcAAEAAQUBAQAAAAAAAAAAAAAABwIDBAUGAQj/xAAZAQEAAwEBAAAAAAAAAAAAAAAAAQIDBAX/2gAMAwEAAhADEAAAAZlAAAAAAeaM3qP9AS+gfGPoFAWYTiiHdEiOa6AugAAAAAAAAAAAOWiglzgY0sG81NjZWa6lVVTTdoKWbbMf2qguZuFUd9Ifz74fWNXzNNh1oAAAAAAABozZRBy/PF7G88DoJF1nmOo6eKui13yQtvlWJfJb8rER8hOEFJPNtmyd3I2x0RDXLtkibTSTHGtpAlD5Q7Dmp9DMHOqAAAAAGkMeA/dSKGQOyzfNbY0iaboOiUdyFG9pknLxq+PK95b9rHDxX2XOdGl2WcbfxFz21VhRylEXb6e26XPW5aqqOl+gflfuCe1NQAAABj/PPWRgeW6vDzMxOm1nfbOz0fVfPwr/ACWFOw4jr+W1t1lNFHHlXT5rbzG0ht10Xu38OnkzzeMx4+6dFHjmr68Q98eF1aukzyV8s/TBnAAAc90MEHF41VABekzl+k9LXI6fX0c2efFknxle3Y+R7J+k5tNDgxqwsngt7yD7r83KtyzV6Q3idjx+l6abjCvnnuwNdRT4e37N0vSlFW9PpZTUAAPn76BiMimi9bKffMq89bn67b+1vudJ0Ed8OUk8pvowyi5KvBSBEW/K6eeiJJShre/Zd/CMty2S3Xz0xYkmDiei/HPHNHrwKavB74Kr+NWfR3TQZNhfAAhmZoMI7qXS3udJ03RbodtveU79O3iOV4p4ctXqmxpPf9Trsu1bvlrzKNJDsjxzpanr+P8Acomjj9RkVje7qngbtGxaazn+6+qGcxKy+tel33HqKZfiPqT6Ucl0xfAgWeoFOHou0HnccP3u1uz0WVrvQ0zYqzNfwZ+5WJ7nGSxl5yGOK8e5TnXH21iV6uV4zL0sukkDmO/lruT7fNPnq3NMQVYq/UWKtppy551Vs5ndaXZEwcTf7Yk4CCp1hkjWi5QeSBH/AGu9s7k8zm+u5575uQHrwegU1eHm+0NJj4+fry5IcbVH0FTF3YHaQ/IMWHQcxIW3Ii22D9OkFafoJKI1yuK+kjY1AAi+UOMIFtX7JT0fO5/Razie+Y18898qe2/C77byS173XfEDpB4YxweeVDEw9tjGHVRUXJ9gvtDB6fo4kJP7rcQGY0g9BAp2U46ragACmrw+dOZ22jLq3UVePDy3XsjT+dBpy1dx7puO+inPR9R+QHN5xUYfSPHpgRstaPPfDDxdrrinc6SokOQog+oTnYd6PpjD5Lkvoo3AAAAPne5I+OQhZ7HmzCrvWD3Y6m8bHq+UlgirSznGpzflF4r2ulto22Lj1lFwS898PMDP1pR7T6bP6w+O5PJbhaSItNL9U/MkokngAAA1vGSHHBz0eyFH5T756UYucNbsLeGS1s4Y7ktcVLfMnGLNZcU+lT3amo8uWinW5mCe++D2qkZ+HdrMPMw6jtN/FuWTR1Xz3QfVr50H0gBYvjmdT3gjXElURHYmMQvemIfOPJ/W0MHKY2jyjzDzc4092zWXsjF9PLdeOZ+53vQEQa76Dj8j1eqLO7v9qcFjfU2tPl6z9K4B8+b3pRHaofYoAAAAAAIthj65jwhnYaLrTA0PY70jPzo+bLOPkYRMm1gzuyatHz/PnCb3nt0fRnzZu+4JTABAvRchfNA7sTIAAAAAAADgY4+hRye72NJznz39N80fPFiSdacD50ehKr2HdLtmq2SN9ARzIwA5zo4RLkYyxxhOrfAAAAAAAAAABZvDX29pQc5Hsv8AAnC8Xs9eanY5/bmsxdZkky9n8pbo+iYDz8k5OZoj+kAAAAAAAAAAAAABh5ghymZRod8HnM9OIU4b6kHyPufpLKNLvQAAAAAAAAAAAAAAAAAAAAA//8QAMRAAAQQCAQMDAgYCAQUAAAAAAwECBAUABhEQEhMUICEiMAcVFiMxQCQzUCUyNUFC/9oACAEBAAEFAv8Ak1VGpIt64GH2mI3DbYfCbNYOz9R2ON2WxRWbXOTBbcTAbXFdke8rTYMoyp/Zn3UCJk7aJD8l2MiQqlcuKqr15TO5M7kzlOiKqYCWcLoO0TRZA2GBJRqo5P6lpeQ4OWd5MmY4qriqq4nysmEUAOva3EWPwvixWszxtxrUTOM4z5TKy4m1j6e9iT2/0ZUgMYN1sRpGPJzirz0by5aCrVzrOKEmfp4ufp42fp42fp42OoCNQzUGbpW1pZmO146IlGfPyI+fkBVwtcevkVd6kPAFGYX3razBXBtbKROMrunyqxoKplTCY0aNGJt76lpqpX+m63JfHEVeVyti+pPBE0Akfi/PSytxgSbPLKz/AFrR3B68sKUGZH+5d2oq4E6WWUdV6RwkkEiwxRWeLyGiNewMpvlBMQjywk7YvXazcByBEfJJAhihC7sReM+XOvLNghkI4j+nCsyitSwDxJApUf7VxYCros+WWVIVekcLjvhjGIJl5dVxuEznFeT80QjeO9udydNnN3yIkZ8hwI7K9v8A8ohFRGJl1atEwpHlf1RcVPnV7hYZ2qjk+xJMOOC7sST5a9YhHDLGa95QCaeTzwkM3mj5Gb5LfqRexjhPky6+C2MMX0J3535c2qNaR7iO9qYvPOl2nnD9jcbTylVfZTxHEdLIjGwwoADl+KU/BHu7W0idxOenOWbnJDroaR2/OfOLlxZdrXuV7vcmJkSQ+HLgSWS4nuv56QK8r1c7qBnkIFHRo9YBFkri48ix58yU11ZTp2w8VehTMZI6crknvfHld3l6crjO52KvC8pnPOJ/KYmaFNVj/dt071NivspQpjiKMUQfgjxi965fCVsoR3OHGb2R+et0fidCMh46db6N2v8AYKbKGjk+r5xExMTKiSsWc1UVvt2iP4bdU6onKwk5yI5ZVhGN5XVhv83NgaxR1Y0fL55znovwlgTySaCV2k6yw+eMdnjJ7ePYxfnWZPqaj272xqSF6xE5OhFYFjli1UVqji+cgLM8po406U+QTXA90jtzszx5M+iKV3JAF7HwTeojomL3Zzl/H4d9lM1i8BXNAUZhezfX8zWvR3WpbyYIfKSe5j5nKZsCcSyzSPj5QC7Yva1E4ZitZmwKxtf0oLHwnsprYTPzaU7KqwkyJlySKKI4re7yNzuzn3c45fq0GU5D+zdF5uBojHlQfSjYr1igZFj16qay5y/KMh8hxnGJDawEdSDzvHnkHmymaqKnRre5YoHSFmuTmvGOviSnyiOdzz8Zxnzncud2d2c53Yi5+0q0M0MCwhX8KS4JRGZ02/5ul66qn79sTsiUif5V7MQA3uV7s9QXPOTPMTPMTPMTHkc5Fzt5dDjqR0h7YsYhO11a+WhdeAKOOSFkhthrxeCMeN/XuXEdi/zi/wA1MT1s4upoOHpE90K46bd/5leuqf7LpeSwpLAMnHU5vsLgUamCpgflM2Q4jspyslRpnjYsZFVEMTi2r2WLSDcImFG8eR66QYKYiUIskTKz0/05BO8BA2FxKWip1WT03FOLleupJ9duX9wxkbE+016sxbWS6ET5XnGueIgrJJgFX/F57o/YPv2rxOtNVrGHIxk+6srWtkVpqbX59oCw1da+BqtUltP3CvqqqN+H9YhSo1E9m8M4snddcL422Jf2/ucY5vKOaqYmIqotbeyIza2ygOZOsoUeLBjSLaz3KUKvr9SiDqKT/Ju7mDGHDib/AGXqJ2sQG1NNaSS3N3VQ2QIHs3sfw7rU/wCuW7ukffeJPY1PmliC1+kpIpb/AGDf7LuJoFZ4wXs9tbWabAdZXO+2Ppq38Pq7ySfbuAfLUv6xj+IPu5wA1MTXa6CSdM1atNk7VJ4ckANHf7Ss56wpDo0rbL5LQVYMet6zVRTXNwJjRC3uxWZZa7AbU09xLLcXdTDZX1/tc1HN2EAY1p7lXOc56McrcSR5WUmwljYAozikADIHZanGLllVzq93sKzrTFjgtN3tWz52j1no67YrBKyr0evWda75Y+lrfw/rvLL9y/xcm89hznOc9VwIhq8oI2HF2YnTjBF5yotJFcWtnx54DnCBs/Yq5jbIgzH9hU4di5q8BtjbonCfiX3+PRfB+n7yWS2vKaE2vrvfciRtiTXZfqyCcxy8piLnPRi8iT4yvq0KO1rCwVavRcaVW5HM8SkkNVzjOXOOfaX5f0qZj4FhHKw4Ngrm2dZp091faxXOq7sRGlF77+mHLfHMroWyR/T3OKxFxWOTOcY9W5DlNBJAUMgD07kt6hQ4x3KYucZx71/7uuubSldADuFQ/NudXnnWrvXwtAsfPB987xDY3tkC21PPH6uai44apiLkKUeGWvsAThqq91pVNIqr2r7fnq7+PYxUR7nQ1x3Z0iSDRig2S8FgNzsGZH3WG7Imw1MnGEYROjkRzZ8/0eynnVxqlf59hGdyNxqvY+stmnRy8ZbBGVi/QqL1b/LSK0ZeO/Cr9PVOkYBpBDRZIuicc/HIglfj4lkIUf1j0r76THF1MERmmoaouE1Wudj9RjY7UMdqJc/SUrF1OdkbTnuy6pZVYpUTtr7BzBTJKlXt7sVFaqL0avC+RM/9uXjIUZknHa/IRZkOREXojecG54nss7djXW012Olsfj1EufTiKqJU282sz5X7pWMIzY9bdHxPoXoeP+05vCtXquIjiPpI3LhvUhTR1MG1pE8SJip8Bp5BKL8PrFEKSHEJhKSpJhNYpXY/UKh2bbTQqgTqCO3WGI5339m1xC58icjUyH5VLJrzjxwnhJ0dgyKwlS8J4LuFwTH98x7WOkKjpOv1i2k8/pIdbrvLti9n4gmU9xu7kia5qsb1V99/aNfbOb9cclNMjx2nlkMSJRklRbqqLWkx/SOYoCw9hTtBcRHMvLULhImU1kWBJ2q+dZro9KsYfsh/9W3f8QpPluPw5if0dmoG2CRdWsylq6KJAC5uTYwpMedHJEkritxUxMTo53OOXNKpUnH9myzPRUv4eR2jHOkOmWGvwvQVH9Nyc4Ri5bVUawHI1aW1ztatssKubBYqIuIvGfK4vw1icrpkuEyB7PxFm98i7X8l1DTa/wBbb/1nMTHMVOk+MKaCXq8HH64vdKhljmd3cxECQs7WDdtfsNtVkqNkrrDpKMONG1wL7vZtssPzG50+u9BVf2FY1ccAa5sxZMBJUqVJd24JpDPJpsh0Y1dcVJFvSnYYMA2VV/Z1Ttn2BLSuev6e1XTqr8wsf7cyOOUCx1k7SRdWlPWrqote3FTnJ9DWTMn6WRMl09pDwSlE+Sy2uJlFXMrK/wD4QkSKRWNaxv8AxX//xAAkEQACAgEDBAIDAAAAAAAAAAAAAQIRIRASMDEyQVEDQCJwcf/aAAgBAwEBPwH7VfToTG6ZY+glZaNy9H944q2Ta6I+MejXgb8LStvHFWdqsStMhhN6LLJy9aJbc8iRJ7mfGyVKONIK2PGkvfGsskRV2Rxkl40XaSyr0jlVxw7jdefRHyZkSy9H0XNEjH8B+hNo3M3Mu+aJOVYX04OmP9i//8QALhEAAgEDAAcHBAMAAAAAAAAAAQIAAxESBBAhIjAxQRMUIzJAUVIzYZHwcHHh/9oACAECAQE/AfVBSRcejVLjKU26jkI+Kta0yX4ypjiCBEQubCXRdlrzNPjLU184jEE7OFQpGq+M0lkHhp0miG4KmMbm+p0LMEEZgowTV9LaecJvwqNPtGtMe7rkOvKJTzpsfaaOcabtqprkwEr1RchOuoAURkecJJNzw6NPFAPf9/2V3NVi3tNFfHKVcUobvU6tHQO29GUqbGA2N5pA3s/fh01yYLKwty67BKSq2ayj4fiGVtiqv7t1DZSP3j+Igf8AOqnvqU/HD0T6ona9oWccllLyPN+u0rbzkiWMqjFVEVyuoEobxjc34VDmf6MpUz3aw5mVWA3F5RajJ5TO8VfkZ3ir8jGYsbnUDbaIzFjczNrWvwqAuSPtNJrdnuL7ej0VwlS5jNkb/wAi/wD/xABEEAABAwEEBgUJBgQGAwEAAAABAAIDEQQSITEQEyAiQVEjMlJhcQUwQmJygZGhsRQzQJLB0TSC4fAVJENQY/FTg5PS/9oACAEBAAY/Av8Ac6kgBb9qYTybiuihkf44Lo4Ym+OKwmA8Gr+Jd8Avvz+ULG47xYukgjPhULpIXN8DVff3D64oqxyNePVNfxVHS339lmKpZmNiHPMqs0z5PE6M9OazWaz0YFXo5CD3FASkSt9ZC+7Uu9bL4qoII/ClldbL2WogyXI+y3TQJkjuOY5bGS/h6n2l9y0fFdVcdkaqUmHiw4hBpcIpTwPH8EZZnhjRzTorNWKLnxOxg0n3LWyD+i1WQpQrCU/kX3jvyLru/Iuu78iq6QgewnMBrdNK6a9VvDDNbryf5V6X5Fm78izd+RNbK4tjd1X0Qs9qn1w5gYtQkieHNORHn70hq89VnNX5n4cG8BpoBUngqzUr2VV8cLu8FXG0bhgmzxyEtby4Fb52Cq6ADly5oC7Q7FGn3otd1Dw5r1eazvRHrNQmhdVp+Xne1K7qtTppnXnO03Ix4nkq5u4uKD3VPZagH0ryHBGmYxCjc1x61HjmEwd1di53U0AAGiyvP4rALeK4hFjDX9UXvOOndxHJB7DWM9ZvNNmhdVrvNmV+Lj1G8ynTSuq52mgwHEq4wUVOAWveMfR0uizacKe9UWazGi73oUGBNPFNpC+Rx7PBVY1YmngsTVGOM/1Re81OzeZny5q48nUvO8OSBBqD5l80po1oqUZXdXJreQ2AGiteCEYzVxn3TMz2tDX8eOgnk4nTgnO5CqoKlf8AJ9F36TFE7xI4q87bvtz+q+xyO3mjo/Dl5n7FE7cZ1+87IdTedl3L7JZ/5j2ig3jmUU6FxzxCLuSll92w5res/dCvOoZD8tgxRHxKqfMstMZpQ1UdoZk8bbpAekdus8USczsBqaxo6ebL1QnPrVsfHmdJ53sEZG+ngge0a7EUTs3ZbD2sNHEYI3tOS3WOPgFQ4eOmmiik8nSHDrxfqNsxg7kO6P12ddJ1BvFG0OxnnwYOQTWceKl9V9NDne9XC7jWiYzkNgerQJsnHjsa1uTvrs01l5vZfvBEgAd2zDOPRcgRkdqYUwcbw9+xRNhyZ1nlaw9RmQ+ifL6NaNVojJzNViUw1xy9yaDleWYWYWehzuZqtU44O2HM48ER5uInrM3D7tqCTiWU2G9ydQ4vw9yL678uSjZXIIuvHB5WuqSDl3oklXuQWfzWfzXW+akdybzRoq1QfXHI7Gtbx83JDaA8tcQRd4JssTg5rsjsxt7Mew48ggxrPkorM3qtoNBOVHlNiqdBIwrgsllocBm7TqZpLrHYVOS3rr3nJqq0AeDUInm8zjhknCZ3WG7RVAIHm5rIXbrm32jv2Xjk0LexCBjPu0PDRUmgTq9alXFXz3uWadddWp0BNjvtJ44r7xvxX3jfivvG/FBjXVw2BeJuNwQs8XvVG3X2iThXM8lJLJEZJSbowqGrerpz2sV13D3KK03y4NqCKZq7UsPer8MjZGni010ze76bHv8A0RHF2CJ5NRiacT1leOjrfJZrNZrNUJ0UCuDLiVu55NWB3syjbA2t1pDD30UlqlodWN1vMoRyRtc955ZJ0ljN8dmiLHtLXDMbOSw0xWa8Gax1KqXU2uUzXd3gKoWd9RHPuEcncNM3u+mx7z9E1tcGhSvGdKBE1r5oOfW6TvU5JxikLXu39Y+gPcqu4YaGWRl1soo015c1qIQ25Z209pyMzzW9gPBdEKU7lvNDLT6LhxTo3ijmmh0DWMcy8KiozWvrDHH2pJQ3QLz7bajxu0Y1PisvksRuIoJHylxCzQniJEjDVqwfaH/FR2u1WcRvjdeBpQnTKeYb9Nivefoppa5dVMjHWIxPm6ZhCym0u1QFLtOHiq/DQHscWubiCmRNIjmcek4DxTpODfooq9XGvio7lBQNJpwKL48CRvJ/lC14WSzbxr6RRawunmdU4nh+ibDaTHrHC9da6tFr4dWyO9SrypLXa7cyjB1WMzPJFkgcIIxWQj5BRwWWE/aJTW8Xk0apLfMwFjNyOvE8VgKbDHdqMbDzyr9E5nhX8Fq5AJY+RRabYIAfReKhHV2qOUnsIRM68hxPZCh8hWPAUrJ4f3ipfKtrwdI294N4D3qv+raH/lH9Ao7NEKMjbQJvk+I1ZD1u9ybrd2Rw1kp5J0jASZH3Im93BQ2WPJjfidmzy+I2HjvT/H8BgqHTQKS3WodMW3n93JqMtoxZe1kx7uSZ5KgO6zelp8gneUpW70m7F3N5qW1HrAUYObuCNqn3mRHWPJ9J3BCxxnpbRge5vFP8oSDdi3Y/a2i8DGNwPu2JadZ2XmAxpA7ynReUnb3+m2tA5dEHwH1TUfNXrO9lob8Crk8T43cnCm1UZ6Y7QwAujdeoclZ4LOHNjpeePW5J9pmH+YeLxHrcGoMcSTK6/K7kOKbHGLrWigCFihNY4MMOL0yN9A+l+U96c+MF192rhb3cFDZWegMTzPHaLXAEHMFTQxYMBw83zCAca0Qgtt6SHg/0m/uhJE8PY7IhauaJkjeThVF9ikMDuycWr/MQkN7Yxbs3hps81rbeha+pTbNA+9Z4OIyc5fapW9NaMfBvBS2j0+rGPWRtk29HAb2PF/BfZIz0tow8G8U+3yDch3We15iabGjnkiu2A7AFYSBVGWmvFXXYFVjN6M9aM5Fa2B3tN4tV6aVkY9Y0TmMBtPcBh806aKBlnb2G5eYigf8Adjff3gKisXYq744KPU0vXjrPa/uie9lXVdq4R3cFDZW+iN48zx8xaGUu0kKFnBhL3R3wb2YRbxGCxGwO5Xgr1rbW8OrlTvKvtrJAcn/vsUdiOavRyujPNrqK8XFx+K3RTxVXGvmIrUz0HY94TJozVjxeCks/p9aM8nJ1itFWxznVur6Lkwytxs828PBNkYatcKg+YklifdtLhUNrg6i8lW05xv1Mnv3frRTt4ON8e/ThjowTZXwh4HBa2F16P5uKLHtaajeB6rQjabHV0XZ4+cOw2yWmB8rWHdc05Bb5ni9pn7IW3ydaGv1v3jQCKHmofKY++HRWjx4O96dYZHb8HV9nzAtMoJ1OOC8qWSJr216aMObdNf8AsKw+UG/6kdD/AH8djFYY6NbA6h5cCqDde3OPi4o1Ivek7g1a+yi48+h21R26RmDtVofMAubeHEc1hDMz/wBgP6LdLveNGsglfE/K800X8TrPaaCunscT/CrV09lmj8DVUZag08niiqxwcO46S05FCSdr2wiHVk0z41TrE+R25PWLdPVr/VYY7PfoEkbix7ciE2z2kUkHVHB5RN72n/oFrAGtd/ea7tmte6iq3CvmNXBE6V/ZaMV0tmlj9ppGjErNdG5n/wBAEZX2ecRjN13BXoYHyAcWx1TjraOYMG7F2WNjxycKrGyhvskhbrp2/wAy3bXKPFoW7bvjH/VbtsZ72L+Kh+awmg+JTzabSGH0bmKq/pITlI3QyOY3gMnKjCQ1U2ctJ1j3NHcFuTRnCtDgV00eHAjEbAfG8scMiCqtttqu+0SF0phl9uFp/Rb9hs38oLfoVhEW/wAy4ohr3AHNObZpgGONS0tqCi74+dLJGhzTmCnWmwgvh9KPi1er9NIlYbw9Lu2g0CqElKRtFXHuTuBkxceQ4KgsxfH4VRnsoyzboqpfKYBusdgOY4lP8mTYh+/FXnxC37NC7xYFvWCD3Nov4S74PKw17fB6hMD5XPkccHngv8WkmkEmrvBnDPBBjc3GlPPutdgbR+b4ufgrjwafRVrVXYherwW+wDwyRbJxxHeNgOCayA1vmsvqgcEX0oHOFfBSHhWjeQCmdnh8VI5uRcUIcohjIe5PEgayzRx0I4UVk1IP34+H/WzBZWYljMu8qy2FvEtb7mj/AKVlZTBrr592P4A2mygNtIzHb/qix7TQHeaeCldJXmCPohKKtNKBtVW1Vaw4jmO9CpMkLuq+mwJIXljgrtrh/mj/AGVBbKN5E0Wosj73Nw0X48jmmWeHdgZi71nL/EbS2ksg6NvZbs6zNmuv/wArckyzA4QM+Z/sK024j/jb+v6fgftFmo20jPk9Fr4xA3i5zk1ovSvHpPWA9yfC8XmOzH7J8EgoW7dBkqBfbLQKwRHBvbds2iatHXbrPEq1+UpcGtFwH5lTWp2cjyVBZ6bwbV/ifwv6qkzbrx1ZG8F0M0Tx34LCBrvB4QfaoDG0mgJKw01WKbY/tEevrUsrsweT4zW7vvHfw/vvUHk9uE04o76u/ZRlwrFD0j/0H4fBZLvWotEd9hxpVF0Mssfvqi0Ti7wcQnRhzXkdh1Vio43yiJpdvOPBfafJdpjtkXqneWotF6Vrc45sx70GX9RMfQk/Q6JJ5TRkbbxTrZOKsY7Wv/QJ5aawxbjP3TXPbSafff3ch+JxC4pskEbXh2b3cFWeZ7u6uGhsYj1znYAUqmyRysbKRjGf3WsDJ4aenGf2Wq8qWWG2t7RF1494V6x2h0Z/8U//AOskI3kzQ9h/6FRWaxskGsPSj6Bavq262582j+/qg+RvQQ7z+/kPxjoZBUFXrNvtPBdM5sY+K6JlX8XnPRijrLMGu7TMCi6x2gO9V+C6SzyBvMYhV1Zr3YJkj7PPIaBrd05eKZZ24uze7mf9lq+zxE+yrrWgAcB/tf8A/8QAKhABAAIBAgQGAgMBAQAAAAAAAQARITFBUWFxgRCRobHB8CDRMEDh8VD/2gAIAQEAAT8h/wDTemGqtS4AHN+kuRTiw/MatHzKjnZTlDf1uktFnWesfsbT3Sv2SvOnf6SkApsnq0nOOgj+1a1L6HSW3Gt/yltNwwTlk1ZePKeA5KcpLHeasneDQfeh9IiMODPmQwtuP6d4NcMiNj/V0w29p1dotbW/R34xjGZqDAgFroSgP/mypXhc2mEqniXjWnfftF8HRZzj3gNFvWVi4dCLN2/XNpu6AsdD8f0txPW7pFk6Onv7Rkq2xNUuApzogHWT77xOlPVPusGLSOn0x+w+Z9J+59Z+4nLN3/UrG1wa14lpXeZK5S2cix+Zu0xZA4yf1zjFf4MeDL7jwWO5eekFZ9o/nxRbE5/QipjstHlGfAouxgasOLi0PyzNV8QnKZjtqh7cZa6dGh4j1jC2t16Zly5ct18/IuM61W/Cp19l5YecXNaHIgXW8qecusuCPj3sMr0JexNVNvVM0Lezg6w0WZlcPPrOEPm64P8ALdmhf7vKJBVasu8NvLV0hNtuImBENFx/rFV5JRyQ+ZTzlW08Ahza9TMuXLlkH/Z/R4W8VrG8B6wyNjgQvrMDOhg2dHeZYjGH7qXYFLliUljNVbzx0mmDraD9wxhscuX8dYGF9bEZUy3lGfC21f3IeGDzXjKPme8qM5pducWXNGF1y6DhCjIDEE2yzTzJcxJxf0xDt6Jo1QaxPeVeESgC3ZxKGUjGau7Lo14adf6lxA9PG/AfzTZANyo2/jBLAsTRP4coHiOrQilcrweAXUDVS1dg4zNvX47/AGIwmAmWeDqiwqfVu0a4TEcsGro0JgyV1YbcKKXbkJXLlbzplrly3ZHkIhW1/G4oBsepA5nYTq7uz+HeV5Hk9pc/gTL4L7N2B1suj14EqSXy8WeVTq+TiawVnAVjL67uuYxa6zDBMoCAG9zjGJ9h4F4GJh8pzdeRHj2/kxRTBL65PGIbra4O5+ZKNF93aM2qWrHx4Lb9Jgb1AIp20o2R5IoFjhZcxiJaMeC6nvMI6nwl3NiWSgjKp2ftwzmW3rEsXLBMgIRmcjh4NxDj6MHlvZ7Qsy+AqYLuW0YOMaNt8I5RLZGLfWWP059n829fqd33hF+BVDD1Q0Nd2GIbIT5Yr52VddX2ReEJRWQ1zhJlHUPGcosmUUJbGENazhvLSZFHgxS25ndmNNz5eNSq0lIvhnuQW6jdNCcGkogqKbJEvTf0uIlYWP5V1T3ElHixjVamGIT0AdesV4xuzQ2axrJrqtQ314xlLbns9Y08CCEGaOPFKumg7SmBChC7dHlHqPpNY8vqmAmll0dofajroy+kNk0W9KY6pWfL8ajBjxqixlh8D0r8r5U5dn/Zrj4eYkuN53qfiXUifXlL8LG+ssi5FXrnSWSCx9kw/nh7RtbnceUxsrLPa5txNoEmjIiEEcXhEX4C3rENE9I9luJcxUCixm8n+J5izJADbR36QUBWH40Pxa7s0LDwly4CYMWKG3XYQDDRA+7ThEYkVkes0mF3nHbw3Tw3jR/sMqGctNoGsoiPgL8GECOVR2vhCqjf9nlGwO8iXaoV0w4wU44AzccljZgm8A6PguXLly4RkPSWwrg20Nev4qxt/S/mOEX7QFnS5W3hZcQHnGZDAAtVhxYRDq2nlr4EtYXHOU9jKprP8DmO3yU/4iE4pt5v+RzJ4NWabsxUQst44SlVBintOSyFnZEr3aClNXF52OEyq33xK45yMEwb9MOMSAd/Aghb6PWIy/s84kDOB0TrDwU7Ib0lFHp4pscPahlZ8L7c8VU0v+4qcz8swmTQ6HCOdVhhuY6AHKkV/wAzlfKfaTlfKZMjpBFFqsB6PMq4Q0HOOTZeyMlNWmGizpdzTGRt/lN3cwNd6iiwOGLrlHJBSFVKZmWk7nWWtIlyoYHO5o4MzjuhFrsMRLzSAlNN3PWKHkd3Hnjv42z/AHSa/H7fJLbpYerNtRy6sWDF3fF4/wAOiF74AtIGmcJYOByNdNZcYEUDS948WWCpZVr0fMrawJ06jyihUL3g1e8Gyh1I3RBhV0v3/cVMCVB3qgxTiQWGbSxVyW/SYOsHBUMLHfXMd1CY7hpcwyp7S40YNpRLLWmk1lttNOvHLfbxVTcHl/DbwPjQVi1YacCCLx5t/Ey4oLswMmpQumhhcVmzSDYxyxANRgddicHEStl1mK0sZ+ZViBdOrv6RqcjKssv2Ig0sgcZUsRQ4Euuhq9pSg8aqHXAm8qUB2ua5aLy61qhg9eAhW0CpLQgazyOa+zNSahBcrrL8zB0cFi6ux7wuiHI/CmN16p8TV4teUWnWLhr/ANP1G5f8LE8AVR/JjjFtASKJoks3ZTwIyk7tf4R8ItV7EyCWX03HoExS5r14B5rlA433qOhzXxDiXb/o9iUWg53OJcLuu7t2PdmMlhuTTsfMD0rhtH7d5sVJfMe7+OFHH9E+YI+D7b7RF3jHy/C5f8SXEZxZkaJppkhTGQCrgCGqOfOB7+sukbgmWPadIICV7C/gM+Uw4HQ9zufbnK9WwtzR89pbnx8Fseee0wy6JqPy085nl1rdavY9/wAltDDex9yDMfCjLQPVn8GMuENQncojEChfZ5vPxA1439MgBANj23HrEvGt/kr7CGJ6ML7kDap3gYUH7+9XzDb0naq9r9x57eZbX3lDmjm0A0ijGWN1r5aecvhXVxnyMdpU8HqFft3lZae7Dz/IuLUCxIbuhr0sGov4vgMkE0c5E5RqupyYwzRan6HrBnRa7GIFPUInfCPfJ6xRnuMp3/f4/OS8Q16x/JQm3B505qCFyrbRq9tPOaRKM9dt8+UvoXOYWnlr2g9Nhd19PlKerlVqPy085n11XdmXse/5qk8JjI0g2vEpswg/ARGlhgsOelylePJHCOVGuKBifLMnwzPI4POE7NYTU4M5kNH3Re2lNF9X/UYfM3vug2D4sPFow06TRNwZPyHdqEAADQJol6/hsfM+TDy37QGoH1qvNr3lPe2burz/ADZUSR05ovHpmX2IMgBpzWuSLZpVDxm7JwYQy7GuDE1QvlsxYjTWwekxjcVVacosIQWTWGBa7GWOupGC3vdvOYPq4zWHz/Bit5Q1qakt3u4eYeUoE2vESMeinIGn67xUKY9CPx3lmfrm2YU8824/wPWtboVOOOktDM62Ml9kVMV78e9+G3VOGkM6cRO3rqcZvyte/aBHq59JUFuaBf65UFOXaOJxPaBceAgeEID8WK0jr4MSJGhtNqedyrsOr7mH8xkA+BDWEsGg90npPUmeTNfd/p9z+DXNpSqWU4NdZo0duDM4fuwSWLvnr8/gHwmTxcJsOGCeLFnqEqrjZ+r6XvOtktHgc5wFesdVbMuDVVqCYT8apoONS4xU2L4VzlSrEurVOFz2/wC+2H4w/c7w/XGpKidXBt8bcoAvrPmUgpxI/Erk3cOFX7e7xMEQpIeqKV1tHEvEyhFvDwztheUIMVBw8fxBdtjGpTqax3ZW6kYGGqWVxj+omqOhGkGxwYbyhtFqCbZfgb0XC7FLG1hTKoylHH8BbUZYoSyxQ5T6MJxnacIHSNsMecayHYveS3Ncsak99I0NSmgHsSzJArxe34cp9kRC0PqZnoSh9yKfOR+oNwA9X1D5jtr2/SE1f04Rh01hrzu6lPhGBjo8GIa6mkVHq7O+8w2Wk4xojENJfCLdMGqObShFVsZu9N5SFE1Wh0szKrQuKO8EdpRwiYE2YNMneGLBpbHnLM4xfeeU1gvFL2PSar3K56krk9obUKGgwWmM9FV1mGq9/N/KL36HYkJ1canR4kXX+A4wMizqUS4lx4qiZCT2moqEGKbRMSlwm28pgQtcQlkfAGnJPCqVNpStMo/5zXrESLXAfIM9mCa/xXxPsNdIL7F+Zpn6u5DPKUEAcg4kPL1JWbTZ0mYaIDd29/5zy9Eac/NymaAWkTLmAQHRlPfYq0YyNra2ukJqkCmnEPBY8TaqcnEisx6In1gAgCpzRvAg3ihT6swnvTGiwfuFoXR5xr2Gvtw9XSFK82KukNTMgbl8+6H4YijKcf8A5GSpqfo1i97dt/ur+gE8L0yQmzQBlzN+Siuw9Et0iHgjxil1dDLWjh03nL8HZ4JsxgxEom+kIiA1TleahHstPOZybyHhGVpseJL8jFP2o2gvAVDW36vt+C0XNNxq30bHnMtRbO++kZuFP6/0RsG+MBz5848U4JrsGscvK6meRtKXeNNvWAzwWq725GKfXuamzBfhcOKsMqwoM4lbT3c5TxJVfl76UQx+BH3fTR++01BBOwZfaWaJk6uD2hN09ZT/AFBOZavTgdoQrHiOrj0nn5dhz1hdN+/WUf1ARe01QLwiObrpNV7c5lljeB4s0o5Cq4/jwZGceB5XAqNOdcweRGJr5v66s4M5CvqdYPLzbxrf2RGa15byqLGar8biXCm895hQQpeyXatmINAgHRuxb1SK6fDM+CoD2tROvWVW+Q+F4QF5EsvBdpr+vsTyjxoa9z8TRyV2o+A9V/s6Ss1EHRmDRYbV0iLsWPQ0jC00W0nvrLlINKPAi6g3SnvA0Twdkv1S06ZD2GXeoMU790eh7TJKVTNnB1zntKPi+yh8HrDWNRdov2+hD+37ANxtSrqIRd+5tNWGfS08AFCx2Zdk/wB4lQfsNvMlucMHtytfMBzODHAzNgD6VlFWjt/Xtt/4vNCSLgzRMFB/5f8A/9oADAMBAAIAAwAAABDzzzzzzTjjTDjzzzzzzzzzzzyDhEhQQBxTjzzzzzzzzgRTDUlVNKeaLXzzzzzzxhRoDZB/VU94dRjzzzzwgBUpJL8vu/i0xwxTzzyhQCR9YQvYDj6jDgijzzyxwzXdq0t3lPkwwTCzzzyhQvfkLmg1f/09gDBQDTziBrMRgyDkTDFFTAxBzzzzigUjAwRyTSxQRRhDDzzxiH2gyiCQyhjDDSghTzyzzAThCxO/DiwRwTTzzzyxyQQgSDgeODSQizTjzzzzCCzAQygBxxywBBzjxDzyxxxzwRyjSzBxBCCwwDDzzzzzzwwwhSByzARzhwzzzzzzzzzzgRjyiwzyxQzzzzzzzzzzyxhAxShCgjzzzzzzzzzzzzzzxyygRzzzzzzzzzzzzzzzzzzzzzz/xAAlEQEAAgEDAwQDAQAAAAAAAAABABExECEwQEFRYXGR8HCBwdH/2gAIAQMBAT8Q6oSWdGbLZ3jBCoqV8SiGoioiDQXoEA2RRduJaoT0o7EYrV0RQeIYaBkcxb34rdRxO+JevEWjGggqmihbMVW3jqA8/T/WOj4lFw0+50HegVTBpub2nfjNBDWMux/YFMK7zaD7vptT5go+em4+PHim6jAmPsm7HakpgoIKWQIWNkW2+Lu9mIOssYFZhGeuz12KVug1FVtltVxBVDxP0TowtYrb6jEHpKlfhf8A/8QAKREBAAECAwcFAQEBAAAAAAAAAREAITFRYRAwQXGBkaFAscHR4fDxcP/aAAgBAgEBPxD1T4LGPoxlLHL2veoRFyM5srnU9Gxq/dabu/dCyCzngc6gjSiFjizftWh7v3SGRHIWet7e+lIEQZboQOvKrC2xOtBhC3T+ipdcdhT3A83fep+W4uf5sAJicDLV1yOtIpW+6W4gxXIpCpfrRm/FRjjB6XmuUQd9mpqU/DFdz05HnYAGXgZavwdadJK7uxF4Lrkcgu6VISSzp+40gheCYzDE7LRIOSbocHlsWCgBv4PLSHGKchwqSDC8+To7vVxCoyY/Ixe1ulRtgwHe3egvBCSM3LlnXIRPdPtGxj+KDtd+K1iW+D1PJsu3HHm4nU8m7Au4EvYoGGBjVeNGZMI8yRQnG77HF+6aYtgcixWlWa0L3fygEMHGpWigslSWbdYn+IoDD9UKMGsxc3PlwKmpDlX+g1/oNT5l12IhISp8q60BAo3TCYqp1PYh5v7ejF4YPtTK+LPqY9JNT/xf/8QAKhABAAIBAwMDBAMBAQEAAAAAAQARITFBUWFxgZGhsRAgwdFA4fAw8VD/2gAIAQEAAT8Q/wDpkDSxgHVZyoYN3GsPLKAtoielvaAFmx+aB7RAh3gevUYPBL5qgYqOzB9oj6QHyISjklB9aSyDdX29tE/8SUPuhVn/AHAP8lQFUA1WOHXLpQ8Nqetx3aMZ7pT0Y6sixKOxoeJd0/Ka5u7L6y4l+ydFCQPp6kNAHzHb7XSaO3WF5oytFgl9elTfVuYc6EBv0GPZDfuDgO4mv8SzmVFpdKn6fYW9Ixm8Dq+rXyYwsp3Y5bsSA4ALV4JdkvQGU6F6/MG6sCSjiIqHTJfpCe6rpfH9xHHdG+YVaPoXvOHxH6llLN1cX0ag9G4rDISk2TiIVOz/AFE+oRhiAKz/AOfqp7yzn+Cat8tlcDVehHTC0lF1Gh4PVi0Fy2xK14iA1gJ9vKSY7qbS6cHL9oCLVMK7J0a32hskWhokA0XzhH9uP/RxrREQBFI2HBmq68QZfWaac3ytaWYOZcKmqa8RZp7ct+5W1e6/cBQCUl0ik1ZOyl48/uXE4VgddIeXxMmRxB/T0/7visat8vyelwHgWzXEH51Yyg+Yu7CvopbToTXnUgg+52Md47ymKt+V0r0YKRKDYd0boLFBAoOg6mjPaN2qA2EGHBax+oJmlqzo3yqIPbk8qy47JfYGwctjlg/iIgUfAe8RfgF9ILgldEiSoBqriLOZn9A3VxBtpSB1fglEUrm38ftKznaOcOOr1uHOLlY3hbJ/ZZ/0YyV7n1+Me+hulznAYOANg0DaK3OJdbwDd1Ex8rzwbxA1lGy6BsdD3iXjwYAtag5MfEKgoNcfCterBTT1HIc++krJOvLsqji7Ndcy2CkF3/s+h+hh5UUvfNA0jHOaOVwdOWM4BA5fUNj39oxDjMUe8siK779opIQ3YrmXxF6UL7mh3d4xF++gcHBCBEwKRMM0iHW9/lHSJxcJajjYbO3a5Zlct1ujZNE/5oWI3KaPYbv5SLnajoNgNgMBEK2jNNdKbHHJmSXzvuE7srxthHO30179ppiHRP329dyOQTaEyooZ5YTxrDXSgK0CaMXfENUvCVrCS3uWscEP5ixuWRV0OxauwQzK2w+CbHXeMkaEFRf+0iBPsyDvFYunmE4zJU7gccnf5duvwNgNiXLhSJzA4BrbH6HrCsk1rTCcm/J4h1+P2jIian/Ekr6eDY5XQOWJ8uWrBcHfdd1iK5SUQIj0dV5OsovW021reAhwU1gzZqvVp0mJxhAYAIFMUNXDD+/MZMJMm4i6Jr3SJa4RNdVLiIS8sS5EmdguXgUKsqNoesZvKwKf+jvLOmgRubR017o66gjMBmoK5DbljnfTBwfY5hScMM+3I478TMdTOB7mo6XxD72KjslGC+GjvfBGRuL9bwNxsbr/ALTvFUHkjoKVqXtdflzprvK/rTxEq3VXpAqQ+Cnk+JXCWngLgJqqCd1b4I5bll9cDaLFGYY6YK1LJ6DAgk9APucsMcVXeHC9SDAbMy7TrmXLpcstTGhsHBMS/pj6qWVpmMmVJ0s2cOidYWZGw3teBs8feQATuLGe0Z70bxMqELVdWL6pvpvOsNZffCuvb2xf+0goMYu4OhlPDHfV1irVlxmYpXME8gQjomb5wE6hFWIXsbaPiaGxB0JfeJYtWFSx2lUB5sQ2s0Sio+tMELHxcC5SYCvHZ08ymwzk2ceGIxHRPJOGP8azAJctnizKA80L0Y6Rrm5brv2r2IqpGU7ktKY1CCpOSJTU/rVAdaqnUh9rpFlZhvAvuJXYSxj9XfmWFWseGxL7BEybAmXavbrM1FLFmXVwePE1aRzeg/tMeBndhwwtbAZz3I9ZlLiiqHNYiVFW3es+8FYGGkGyGYsNgA6t3qkJwxBs6/vzALbzFiBCo0EMxZcTQaPJmESJllaRMiTE6qRocUWjtUIHuBcroXbR1gtodSw1eVdV1foKGM1putXg+UPMNOQbREsftdITYPw0NHZU8RlzH6aAyHmAM4AADqutAC7sVxG0QsfJ8Ms/JDRg+Vvgg8w6t5UfSnpE7TTnHrTMiLi5TNOg/McZ1pGkNr6EGNIFrnQh+sMDZY7ZTPKqXh6RHHdXDh7BDqSlNYOrzp6QiYR7LgRvqYgs0dhb8SqMrSqOmvp5ldhbF3a8nhl/YhmTEBFwajkka7avc3h7v3CaBvWpePuPEZogGJU4fZ9J+5VbUtawV6jTwy8WwrbBKPSz5gADWm4t91i+nJDG4+iDzvQW2mB+eIRKzTQBoOhLOEBi3cO28CAyFK569oDob7f1K7iTcrLghIprVG/LL1BaG9ahH1QDDkI+E1gCkmwDr64fMslK8IjGwCLu0us7hBlgPQB9hZhFUyvV1d8OmtwZcuXFly5cGUhh+88mRGxitnEJC1mxH4en2qoUOjlf4qAWuslt89oB0YPdryXSp+mYtgICXZXglqi7MWr9Ae8wAvggzAQYq0EfANT2HWm17wIFEdNZyF9YFFBulrDUfKRgU2mhteZkWwHOifIJtFTjDBUqBLHqt4XpnNVLxFiAU5jT5bR90229eSvvLghhjjGAb0eY3aTSMaNbFkbwViWk4x3hWF7P2n3QMKIGUpXi/wC5WGRhsHwEE9j7HSOFgvsmA6QVhoeZcIpWrx67So8MstXdLAodiXR0I0md8XmnHuRQKoDKtSsEO7dUexdPpZYEyQ9TodYoriEBTbv1rxKVIJy0QzBMB+6YP8nrAnLKsS6tnj3RF0OIuZoSGeAiwi4ZIKAu3xBH1Ab1cDrfzMIuMKi02aFDGq9Y9BInajQWwbBdaYQAr4Nae0s0r3JTX0WaO/MPo7DU/S00oPmVm+S+PTjKlmYlOLA9+2UkYdFWzS1LijzDe1bx8pPo6RQFUB2JXLCFRgJo/p/aPSwDtr7BPMyOFRzYg5NYzJoer8RJMumwcEVFBpuksgBIigAexNSL3Ea/wZj0+mf+Jh8Qt0AzCqDlm/1zC9ouBmo6nl4mrcgppTrvn/XB5KIEIOtbraCGdIRlKbbg3bWnEsFcMwN9ACyuukVQpCLqHthvWyZD7jF2gWjEMNM1AHNdgZQU61ZY/MCaary6eZuNnsROTKziAdoLjFboXppZDNo3uwd4NHdHP2WVC6Wzk/0+jpLauSnjFBlKjMLmqEDJlanVNvB7waiwKMy2vQqCsLsdbX9Prf2pNSVosJAHNCgu9WQEDXUB1OvZ0YbQ0Ia90GR3cxKqKutwjakBWa9G0c78ZgNRw0tzBksvllIDnUvA6WzjkqPlRShocq4P9rFYzc+a173muds0Q8RxOyfiJgyboGuQydTENn9ERI1c5Ewr2uUWgpgdu8sznK24Det3lBmvxseM0TFfa7gJbh0IsGdIV7IVTrDpSoLi+hiKpWAIlROBdzfU/R0mgB2RT8jBmP0VlpLuwYUKOg/oggqbcU/Z+24s8zMYZyVT8UPsuh4VqkDAXpiXLddTjmDfoMcsK9YSJG9bKBM7JFtrUycMp0EAckAcGVcME8kUUbCkdPd1YVplTNTpznI9mHdloeSD5ga6fIsXIUG+G7KzSBm86qjdBgLAgbFlelS0KFpoF07Ra+aEdLBCF1fN8Tbd4xaoFrrTRbWI+rtHs2IqjIzeIKJXOqdbUNAY0IH4KXAXS4bA7viAywoCA9PsC5Nypiyt6D1gh+ij9Yg18S+Q3detqhJtVxWfoxLj9wlmpKcRi8cMZXPBpLLTqVHStaqR7zl4LVsNePHIwhHRpBjhRpecbxe+AAr0sXNGrtsSxJIxQ6vgHODeMAJ9ZWtJyuwbMyT5UrNdQBreztLdXUmr+jK7QMsYb01XVbV5WKaoN2G9V1dw2gwXWHs2s8GHe28cCKOerpjLqoFAiOVdl+qL5+1lw2P2K9xfolSzVGImXCev9IKm3AHDoIxjZpmHPH0XLhUv6MolSoIRLGEPbtmKrQNIwvLsNyMNolFAC1XQh3jA1R7xRfVwEVFwK6HA4HCbB4gbG0nDt7ZBy8Jm/InIvsVHThCsdpVexeXRQdNfPYI5Wz/aPfZbWSy6XrrOmDTZaGAY+5X9fudGwotEJdrTxKEQRiVN2Lu8B+JnVbYxiqIYI3nNFiLWEvF89Ieb2u85Dq4KsXbrVTbjNFnW72SZ9WD4+5bxAttvB6lmTqfZUSWBcnUjUjYxG7PwMPRa9pNDjHc1Mk12FypYdA3Tv2Qy3BOLXPVs8Zzfn0fwCt0dWB62/QwA6AE13i90GBroPXql43VoBcC8EepvORIcGArZbV1UriGAVfnype1fc045BIpEcIkRCA5lUOwVPEC8Ny/pcYsSjeBzMsyzHUB214TqMRleOnmvgKYORVpr139lteCYDrEj/bbT3ZYsKTD1llOyOq4Fff7IIYg9uenaj0hVfRiTWHOw+YaXp0j1cJw0R+apsoW4KgEotVNhTCBr164q0fQMD0719+EMubbaphxkuimufE9xQu6Nvqcoue/e0C3kna8JhlDSxijv+pdoafcTN0LaIiGocBqjWmKl2g9mLzBdYIy4oMQpfQXZfzDHie49QqKxC5tZWl/19OiRM0Wz46ynwDGcdn6lgJynTz8F5GWXlKM4r8OjtFJltz3Fx8PuxkCk7EX0bsA5bWHsB0lCGpf0YR1my4XXEePVFDsmQnKx9YOyu0BkwAoA0CeAZvRydaw8yl1s7k/pdKhPQjwpBylXVQKUmg5nlT4r79DGSWr0Zq00UdiSmIDZEBDCyuGKE1U4Gk9SBtNyZIDqgbxXA28dOv6hwY1YhULp4f8AbRkMtbxtQ7geXYi8qQsXehs9dHvgO4ZkQaE/qHj7Ded5XEikOFg10mq7ZJ+6v5hyAO5b6EVnXvPB2NIfR+ihcKmK5FS8G8R2kC1bh+6SH2Bt0RPmF+Cx2L6W1dFF/oSqtV3plX2LpFRk3GRTTuZHtGhIBYYRPD97pC2hMYQDUUDemS9ZxJHSFTyfmYrUx4Q29w8Shw5mbycmJkl0N4hRVwkU0NCaCKdZtNHY7LqBsuV83EHRq0qVeR75uMEAQpFIlB2anVZbniukWo2o+u7eiidzj6YKTES1WuJUUFEohGEWLeWLux6yOFTmarlAAnmavqUqNmGtoWHRnHPPwJfhdQNakoV5HmHQEZNVJwNLy8zn6cyzAd6uh/wGB5DxpVkFZGTF7Q2RNpwqCNFlmILBSFtUJ6h4m8PpQheu8vF6jWZa0NRlNHEDQSq+B1NmF83GFw3hmrs3BbgBqKEXX0rrBqzWq5ZpJpwQzdQDJ2feWf0CpTUSDYwjCjQg/W6pjsdesA6fR0yGZHr9KbCW5Izk1J5maNL52l6ubfEKe8C2s4B7kUbGXAVsRWpZtga3qDrPzfq5T5I8BDKGdco9pzbIW9be0X0lPWBK94RerCF8n1fyhBYjFPsuqEInAw0pmw7HlF0KQWmD+qA7OYawPrXgU31I4GkoOzPEshYmEI4JJtWWA51YdCsksIMFuPDyYrbTiZBnq18XbtZFPQSGoKshx2gERsYBgzIWptrLFiYMgBl4IgCCw0HeoqIdxnA+jn6YBq6S1XLP4sGC1BlozE6/xJhEDCh6wodScmFqBsQj7XBQ43A7BXpCcNYxXVtWmTfeWN0NqLpUpjOSJzMpBVUKWPHX7FnCYHYTEcPra+0lPaXSy8ERsRHHwMXGlt/TH+oy4ULfmjhbD9RnFfxvMNqujTrAtdDlXh+bDssEZptGozRDHcXIA3fR8MVMeaq926bYO9X2sKW1Yb+IrQ9Gz2hCxjshA55I5wrVVHcwL2NCGisDOlpGV1VkoakxqgbdYFAe8Cuz1A+g+GmbB9IsYpFlS+Fr5mQsCe2wGzEe+1Axo7hmbLcn3l8ksbhrdHNCIGtF0zwj7xVaS7H9SqC4qHhBzpNywhADODVGElPlZsNrGfX/AKq0OZW1EdZVNiazbu/3zqZEqbszi789pQF2JViNicxNgspwmsQ0Frwcva/SbG33gXH/AJCOkNlitksg0Fsq7QlwO2i2wJReA3m1oTdw6Ib7MsxtJZBxp7EIdBWgfkOE3wgyysQS7Ij1hImv0Ng9GN6Y4wzJakAWd8FT5ImDNWY9YWW87l+CIgTd/nmRC+hk/NGXqCwlSxdhAZfAupN5Ui3vEgb4BND1/wCxLKiobYIb6O3LQ7U6iq96o2cO3JCBTWWlcw9AOKrfiBISsyGVxnHBAoLItxYm+vc0cwlUayxCmibMWZPMLlMXWp0CvXaI2mDVkX4orsVCEoXxwUF7tm7R0hwqLBuTHVPQwLSgdKVkiz76snR1MOLXaOMkwAaY72YrVXllOnTnBsV7LeZo+y4HWou3Vc0euHpobvnvohEHTewBF9EHz/3Ym3AAGGjscHfR5iM0NAjTh0TcggoddC0crbz50LHq4n70KwVzdxlIWANoXZBi6uBYYZXCBZe0yZTyUmm4aZY6iLjfMuUxT6iUiaImo4mA/FhY8DyNwItWMF4pCdioJovgFxY6YLANLvvdgoAtXQIngkR8n9dW9koT4Ft5eukN23ilR6q7UM2P07mjB9SRIBqseG5mH4TXGDkROiSxcTzxsVV7PD/AYJHgGBbLY7eDsih8sCvUr8OsT0TbMgDtnGNU5iGjrrdOrr1/OYIkmmPewaEE2fVlZbpguyHREZmShUNdZS36Je0JrJmkDdZhZ1U6vr06RjZmZ6EcEKF0MlnaXlo5gAAUH2AocyZdG6lvYpWxtwi9IHvg6a9dMB9iniAEL5HW+y12D+JTLXsmpAWqgTArxXprZjpUQM+Co9dd01yvoi4UmoRz5qKBtvCRfFi72QxRzgEC6yc1D7NahyfuUdyQo1ujQlcRlo8v0S6pXt89ILToM4wWxjVhaKjLOfsZtB1W8q6lldEGuASrcfc7GaCZsLRUnfOtwf4yCUznSsxi+ahuXW1h3Ebv6h5SnI3t1dH11lOpRSQqCNoLXezdXUOF0TGWgBua4X+8rCmQtcWqvcvviNTFAL4V+EiJVBTFVW0ZXiKldQHa5Y6VY90Cmw6I9IPGuQCbJ71nSIriCl03sOHpBHRhjXI4Fo6uh1YokVZFKdqzDlmvWUG0WryI8RppQikHvuTb+QEuWVgiXVOcOYSgjspvDQUpCdClGm76QRuuF4FoekCzDYiUpSQSq2JOmGB5CCX66vCB21PMZI7GCutVdGB9HA70xXlXvLwjmgN4+YMrFqWz5N6AXolN0byUKNh1N6dYwV2Q1eje5fXRuIxx1Rq76li0+SADBX8saQty1bJFY3wqFq39B6B+WFHBABXQ4dpWKiUpKQsYTbzyXOx8jN9MeFS4fIStmObR5sR/sByRshoORNGLKDNLxdKy2isqsxKyk0RbsoHQP5tffRxMyKv5tVwT3UQDoH/y/wD/2Q==" alt="Keokuk Chiefs helmet" class="helmet-logo">
+      <div class="top-bar-titles">
+        <div class="top-bar-main">Keokuk Football Analytics</div>
+        <div class="top-bar-sub">by D.A.D.S.</div>
+      </div>
+    </div>
+    <div class="clock-row">
+      <select id="qtr-top" aria-label="Quarter">
+        <option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option>
+        <option>OT1</option><option>OT2</option><option>OT3</option><option>OT4</option><option>OT5</option>
+      </select>
+      <button id="sw-toggle" onclick="toggleSW()" title="Snap-to-whistle timer" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:5px 9px;cursor:pointer;color:#fff;font-size:14px;">⏱</button>
+    </div>
+  </div>
+
+  <!-- STOPWATCH -->
+  <div class="sw-panel" id="sw-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <span style="font-size:11px;font-weight:700;color:#E0C8FF;text-transform:uppercase;letter-spacing:0.5px;">Snap-to-Whistle</span>
+      <button onclick="toggleSW()" style="background:none;border:none;color:#E0C8FF;font-size:18px;cursor:pointer;">×</button>
+    </div>
+    <div class="sw-display" id="sw-display">0.0<span style="font-size:20px;">s</span></div>
+    <div id="sw-status" style="text-align:center;font-size:11px;color:#C8A8EE;margin-bottom:10px;">Tap START at the snap</div>
+    <div class="sw-btns">
+      <button class="sw-start" id="sw-start" onclick="swStart()">START</button>
+      <button class="sw-stop"  id="sw-stop"  onclick="swStop()" disabled>STOP</button>
+      <button class="sw-reset" onclick="swReset()">Reset</button>
+    </div>
+    <div id="sw-stamp" style="display:none;margin-top:8px;background:rgba(255,255,255,0.1);border-radius:var(--radius);padding:6px 10px;font-size:11px;color:#E0C8FF;text-align:center;"></div>
+  </div>
+
+  <div id="no-support" class="no-support">⚠️ Voice input requires Chrome or Safari. Manual entry still works.</div>
+
+  <!-- TABS -->
+  <div class="tab-row" role="tablist">
+    <div class="tab active" onclick="switchTab('offense')">Offense</div>
+    <div class="tab" onclick="switchTab('defense')">Defense</div>
+    <div class="tab" onclick="switchTab('st')">Spec. Teams</div>
+    <div class="tab" onclick="switchTab('log')">Log (<span id="log-count-tab">0</span>)</div>
+  </div>
+
+  <!-- ══════════════════════ OFFENSE ══════════════════════ -->
+  <div class="section active" id="sec-offense">
+
+    <div class="template-card">
+      <h3>🎤 Speak the whole play</h3>
+      <p>Say it in any order. Example:<br>
+      <code>second and eight shotgun pass right twelve yards first down zone four man no blitz Johnson</code></p>
+    </div>
+
+    <div class="voice-mode">
+      <button class="mic-main" id="mic-off" onclick="startVoice('offense')" aria-label="Speak play">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      </button>
+      <div class="mic-label" id="mic-off-label">Tap to speak</div>
+      <div class="mic-hint" id="mic-off-hint">Speak the full play — down, formation, play type, direction, yards, result, coverage, front, blitz, player names</div>
+    </div>
+
+    <div class="transcript-box" id="trans-box-off" style="display:none;">
+      <div class="pf-label" style="margin-bottom:5px;">Heard</div>
+      <div class="transcript-raw" id="trans-off"></div>
+    </div>
+
+    <div id="preview-off" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px;">
+        <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;">Parsed — review &amp; fix</span>
+        <span style="font-size:11px;color:var(--purple);cursor:pointer;" onclick="clearOffense()">Clear</span>
+      </div>
+      <div class="parsed-grid">
+        <div class="pf"><div class="pf-label">Down</div><div class="pf-val" id="p-off-down">—</div></div>
+        <div class="pf"><div class="pf-label">Distance</div><div class="pf-val" id="p-off-dist">—</div></div>
+        <div class="pf"><div class="pf-label">Field Position</div><div class="pf-val" id="p-off-pos">—</div></div>
+        <div class="pf"><div class="pf-label">Formation</div><div class="pf-val" id="p-off-form">—</div></div>
+        <div class="pf"><div class="pf-label">Play Type</div><div class="pf-val" id="p-off-type">—</div></div>
+        <div class="pf"><div class="pf-label">Direction</div><div class="pf-val" id="p-off-dir">—</div></div>
+        <div class="pf"><div class="pf-label">Yards</div><div class="pf-val" id="p-off-yds">—</div></div>
+        <div class="pf"><div class="pf-label">Result</div><div class="pf-val" id="p-off-res">—</div></div>
+        <div class="pf"><div class="pf-label">QB</div><div class="pf-val" id="p-off-qb">—</div></div>
+        <div class="pf"><div class="pf-label">Carrier / Receiver</div><div class="pf-val" id="p-off-ball">—</div></div>
+        <div class="pf"><div class="pf-label">Def. Front</div><div class="pf-val" id="p-off-front">—</div></div>
+        <div class="pf"><div class="pf-label">Coverage</div><div class="pf-val" id="p-off-cov">—</div></div>
+        <div class="pf"><div class="pf-label">Blitz</div><div class="pf-val" id="p-off-blitz">—</div></div>
+        <div class="pf"><div class="pf-label">Tackler</div><div class="pf-val" id="p-off-tack">—</div></div>
+      </div>
+
+      <!-- EDIT DRAWER -->
+      <div class="edit-drawer" style="margin-top:10px;">
+        <button class="edit-toggle" onclick="toggleEdit('off')">
+          <span>Edit / fill missing fields</span>
+          <span class="arrow" id="arrow-off">▼</span>
+        </button>
+        <div class="edit-fields" id="edit-off">
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Down</div>
+              <select id="e-off-down"><option value="">—</option><option>1st</option><option>2nd</option><option>3rd</option><option>4th</option></select></div>
+            <div class="field-group"><div class="field-label">Distance (yds)</div>
+              <input type="number" id="e-off-dist" placeholder="10"></div>
+          </div>
+          <div class="field-group"><div class="field-label">Field Position</div>
+            <input type="text" id="e-off-pos" placeholder="OWN 35 or OPP 22"></div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Formation</div>
+              <select id="e-off-form"><option value="">—</option><option>I-Form</option><option>Shotgun</option><option>Pistol</option><option>Singleback</option><option>Wildcat</option><option>Empty</option><option>Trips</option><option>Bunch</option><option>Other</option></select></div>
+            <div class="field-group"><div class="field-label">Play Type</div>
+              <select id="e-off-type"><option value="">—</option><option>Run</option><option>Pass</option><option>Option</option><option>Screen</option><option>Trick</option><option>Kneel</option><option>Spike</option></select></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Direction</div>
+              <select id="e-off-dir"><option value="">—</option><option>Left</option><option>Middle</option><option>Right</option></select></div>
+            <div class="field-group"><div class="field-label">Yards Gained</div>
+              <input type="number" id="e-off-yds" placeholder="0"></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">QB</div>
+              <input type="text" id="e-off-qb" placeholder="Name"></div>
+            <div class="field-group"><div class="field-label">Carrier / Receiver</div>
+              <input type="text" id="e-off-ball" placeholder="Name"></div>
+          </div>
+          <div class="three-col">
+            <div class="field-group"><div class="field-label">Def. Front</div>
+              <select id="e-off-front"><option value="">—</option><option>3-Man</option><option>4-Man</option><option>5-Man</option></select></div>
+            <div class="field-group"><div class="field-label">Coverage</div>
+              <select id="e-off-cov"><option value="">—</option><option>Zone</option><option>Man</option><option>Mixed</option></select></div>
+            <div class="field-group"><div class="field-label">Blitz?</div>
+              <select id="e-off-blitz"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Result</div>
+              <select id="e-off-res"><option value="">—</option><option>1st Down</option><option>Touchdown</option><option>Field Goal</option><option>Punt</option><option>Turnover-INT</option><option>Turnover-Fumble</option><option>Safety</option><option>Other</option></select></div>
+            <div class="field-group"><div class="field-label">Tackler</div>
+              <input type="text" id="e-off-tack" placeholder="Name"></div>
+          </div>
+          <div class="field-group"><div class="field-label">Notes</div>
+            <textarea id="e-off-notes" placeholder="Blocking, coverage bust, etc."></textarea></div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn-log" onclick="logPlay('offense')">✓ Log Offensive Play</button>
+        <button class="btn-discard" onclick="clearOffense()">Discard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ DEFENSE ══════════════════════ -->
+  <div class="section" id="sec-defense">
+
+    <div class="template-card" style="background:#F5EEFF;border-color:rgba(139,47,201,0.2);">
+      <h3 style="color:var(--purple2);">🎤 Speak the opponent's play</h3>
+      <p>Example:<br>
+      <code>first and ten i-form run left four yards four man zone no blitz Williams</code></p>
+    </div>
+
+    <div class="voice-mode">
+      <button class="mic-main def-mode" id="mic-def" onclick="startVoice('defense')" aria-label="Speak defensive play">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      </button>
+      <div class="mic-label" id="mic-def-label">Tap to speak</div>
+      <div class="mic-hint">Speak the opponent's full play — down, their formation, play type, direction, yards allowed, coverage we played, front, blitz, player names</div>
+    </div>
+
+    <div class="transcript-box" id="trans-box-def" style="display:none;">
+      <div class="pf-label" style="margin-bottom:5px;">Heard</div>
+      <div class="transcript-raw" id="trans-def"></div>
+    </div>
+
+    <div id="preview-def" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px;">
+        <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;">Parsed — review &amp; fix</span>
+        <span style="font-size:11px;color:var(--purple);cursor:pointer;" onclick="clearDefense()">Clear</span>
+      </div>
+      <div class="parsed-grid">
+        <div class="pf"><div class="pf-label">Down</div><div class="pf-val" id="p-def-down">—</div></div>
+        <div class="pf"><div class="pf-label">Distance</div><div class="pf-val" id="p-def-dist">—</div></div>
+        <div class="pf"><div class="pf-label">Field Position</div><div class="pf-val" id="p-def-pos">—</div></div>
+        <div class="pf"><div class="pf-label">Their Formation</div><div class="pf-val" id="p-def-form">—</div></div>
+        <div class="pf"><div class="pf-label">Play Type</div><div class="pf-val" id="p-def-type">—</div></div>
+        <div class="pf"><div class="pf-label">Direction</div><div class="pf-val" id="p-def-dir">—</div></div>
+        <div class="pf"><div class="pf-label">Yards Allowed</div><div class="pf-val" id="p-def-yds">—</div></div>
+        <div class="pf"><div class="pf-label">Result</div><div class="pf-val" id="p-def-res">—</div></div>
+        <div class="pf"><div class="pf-label">Their QB</div><div class="pf-val" id="p-def-qb">—</div></div>
+        <div class="pf"><div class="pf-label">Carrier / Receiver</div><div class="pf-val" id="p-def-ball">—</div></div>
+        <div class="pf"><div class="pf-label">Our Front</div><div class="pf-val" id="p-def-front">—</div></div>
+        <div class="pf"><div class="pf-label">Our Coverage</div><div class="pf-val" id="p-def-cov">—</div></div>
+        <div class="pf"><div class="pf-label">We Blitzed</div><div class="pf-val" id="p-def-blitz">—</div></div>
+        <div class="pf"><div class="pf-label">Our Tackler</div><div class="pf-val" id="p-def-tack">—</div></div>
+      </div>
+      <div class="edit-drawer" style="margin-top:10px;">
+        <button class="edit-toggle" onclick="toggleEdit('def')">
+          <span>Edit / fill missing fields</span>
+          <span class="arrow" id="arrow-def">▼</span>
+        </button>
+        <div class="edit-fields" id="edit-def">
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Down</div>
+              <select id="e-def-down"><option value="">—</option><option>1st</option><option>2nd</option><option>3rd</option><option>4th</option></select></div>
+            <div class="field-group"><div class="field-label">Distance (yds)</div>
+              <input type="number" id="e-def-dist" placeholder="10"></div>
+          </div>
+          <div class="field-group"><div class="field-label">Field Position</div>
+            <input type="text" id="e-def-pos" placeholder="OWN 35 or OPP 22"></div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Their Formation</div>
+              <select id="e-def-form"><option value="">—</option><option>I-Form</option><option>Shotgun</option><option>Pistol</option><option>Singleback</option><option>Wildcat</option><option>Empty</option><option>Trips</option><option>Bunch</option><option>Other</option></select></div>
+            <div class="field-group"><div class="field-label">Play Type</div>
+              <select id="e-def-type"><option value="">—</option><option>Run</option><option>Pass</option><option>Option</option><option>Screen</option><option>Trick</option></select></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Direction</div>
+              <select id="e-def-dir"><option value="">—</option><option>Left</option><option>Middle</option><option>Right</option></select></div>
+            <div class="field-group"><div class="field-label">Yards Allowed</div>
+              <input type="number" id="e-def-yds" placeholder="0"></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Their QB</div>
+              <input type="text" id="e-def-qb" placeholder="Name"></div>
+            <div class="field-group"><div class="field-label">Carrier / Receiver</div>
+              <input type="text" id="e-def-ball" placeholder="Name"></div>
+          </div>
+          <div class="three-col">
+            <div class="field-group"><div class="field-label">Our Front</div>
+              <select id="e-def-front"><option value="">—</option><option>3-Man</option><option>4-Man</option><option>5-Man</option></select></div>
+            <div class="field-group"><div class="field-label">Coverage</div>
+              <select id="e-def-cov"><option value="">—</option><option>Zone</option><option>Man</option><option>Mixed</option></select></div>
+            <div class="field-group"><div class="field-label">We Blitzed?</div>
+              <select id="e-def-blitz"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Result</div>
+              <select id="e-def-res"><option value="">—</option><option>1st Down</option><option>Touchdown</option><option>Field Goal</option><option>Punt</option><option>Turnover-INT</option><option>Turnover-Fumble</option><option>Safety</option><option>Other</option></select></div>
+            <div class="field-group"><div class="field-label">Our Tackler</div>
+              <input type="text" id="e-def-tack" placeholder="Name"></div>
+          </div>
+          <div class="field-group"><div class="field-label">Notes</div>
+            <textarea id="e-def-notes" placeholder="Assignment, gap discipline, etc."></textarea></div>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn-log defense" onclick="logPlay('defense')">✓ Log Defensive Play</button>
+        <button class="btn-discard" onclick="clearDefense()">Discard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ SPECIAL TEAMS ══════════════════════ -->
+  <div class="section" id="sec-st">
+
+    <div class="template-card" style="background:#E8F5E9;border-color:rgba(46,125,50,0.2);">
+      <h3 style="color:var(--green);">🎤 Speak the special teams play</h3>
+      <p>Examples:<br>
+      <code>kickoff touchback our ball</code><br>
+      <code>punt fifty yards fair catch their twenty</code><br>
+      <code>forty two yard field goal good</code><br>
+      <code>pat good</code></p>
+    </div>
+
+    <div class="voice-mode">
+      <button class="mic-main st-mode" id="mic-st" onclick="startVoice('st')" aria-label="Speak special teams play">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      </button>
+      <div class="mic-label" id="mic-st-label">Tap to speak</div>
+      <div class="mic-hint">Speak the play type, distance, result, player names, touchback, fair catch, or penalty</div>
+    </div>
+
+    <div class="transcript-box" id="trans-box-st" style="display:none;">
+      <div class="pf-label" style="margin-bottom:5px;">Heard</div>
+      <div class="transcript-raw" id="trans-st"></div>
+    </div>
+
+    <div id="preview-st" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px;">
+        <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;">Parsed — review &amp; fix</span>
+        <span style="font-size:11px;color:var(--purple);cursor:pointer;" onclick="clearST()">Clear</span>
+      </div>
+      <div class="parsed-grid">
+        <div class="pf"><div class="pf-label">Play Type</div><div class="pf-val" id="p-st-type">—</div></div>
+        <div class="pf"><div class="pf-label">Our Possession?</div><div class="pf-val" id="p-st-poss">—</div></div>
+        <div class="pf"><div class="pf-label">Kick / Punt Dist</div><div class="pf-val" id="p-st-kdist">—</div></div>
+        <div class="pf"><div class="pf-label">Return Yards</div><div class="pf-val" id="p-st-ret">—</div></div>
+        <div class="pf"><div class="pf-label">FG / PAT Dist</div><div class="pf-val" id="p-st-fgdist">—</div></div>
+        <div class="pf"><div class="pf-label">FG / PAT Result</div><div class="pf-val" id="p-st-fgres">—</div></div>
+        <div class="pf"><div class="pf-label">Touchback?</div><div class="pf-val" id="p-st-tb">—</div></div>
+        <div class="pf"><div class="pf-label">Fair Catch?</div><div class="pf-val" id="p-st-fc">—</div></div>
+        <div class="pf"><div class="pf-label">Our Kicker/Punter</div><div class="pf-val" id="p-st-ourk">—</div></div>
+        <div class="pf"><div class="pf-label">Their Returner</div><div class="pf-val" id="p-st-theirret">—</div></div>
+        <div class="pf"><div class="pf-label">Penalty?</div><div class="pf-val" id="p-st-pen">—</div></div>
+        <div class="pf"><div class="pf-label">Notes</div><div class="pf-val" id="p-st-notes">—</div></div>
+      </div>
+      <div class="edit-drawer" style="margin-top:10px;">
+        <button class="edit-toggle" onclick="toggleEdit('st')">
+          <span>Edit / fill missing fields</span>
+          <span class="arrow" id="arrow-st">▼</span>
+        </button>
+        <div class="edit-fields" id="edit-st">
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Play Type</div>
+              <select id="e-st-type"><option value="">—</option><option>Kickoff</option><option>Kick Return</option><option>Punt</option><option>Punt Return</option><option>Field Goal Attempt</option><option>PAT Attempt</option><option>Onside Kick</option><option>Other</option></select></div>
+            <div class="field-group"><div class="field-label">Our Possession?</div>
+              <select id="e-st-poss"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Our Kicker / Punter</div>
+              <input type="text" id="e-st-ourk" placeholder="Name"></div>
+            <div class="field-group"><div class="field-label">Their Returner</div>
+              <input type="text" id="e-st-theirret" placeholder="Name"></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">Kick / Punt Dist (yds)</div>
+              <input type="number" id="e-st-kdist" placeholder="55"></div>
+            <div class="field-group"><div class="field-label">Return Yards</div>
+              <input type="number" id="e-st-ret" placeholder="0"></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group"><div class="field-label">FG / PAT Dist (yds)</div>
+              <input type="number" id="e-st-fgdist" placeholder="38"></div>
+            <div class="field-group"><div class="field-label">FG / PAT Result</div>
+              <select id="e-st-fgres"><option value="">—</option><option>Good</option><option>No Good</option><option>Blocked</option><option>Fake</option></select></div>
+          </div>
+          <div class="three-col">
+            <div class="field-group"><div class="field-label">Touchback?</div>
+              <select id="e-st-tb"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+            <div class="field-group"><div class="field-label">Fair Catch?</div>
+              <select id="e-st-fc"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+            <div class="field-group"><div class="field-label">Penalty?</div>
+              <select id="e-st-pen"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+          </div>
+          <div class="field-group"><div class="field-label">Notes</div>
+            <textarea id="e-st-notes" placeholder="Coverage, snap issue, etc."></textarea></div>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn-log st" onclick="logPlay('st')">✓ Log Special Teams Play</button>
+        <button class="btn-discard" onclick="clearST()">Discard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ LOG ══════════════════════ -->
+  <div class="section" id="sec-log">
+    <div class="stat-row">
+      <div class="stat-card"><div class="sv" id="stat-off">0</div><div class="sl">Offense</div></div>
+      <div class="stat-card"><div class="sv" id="stat-def">0</div><div class="sl">Defense</div></div>
+      <div class="stat-card"><div class="sv" id="stat-st">0</div><div class="sl">Spec. Teams</div></div>
+    </div>
+    <div class="save-bar">
+      <div><span class="save-dot" id="save-dot"></span><span id="save-status">Auto-saved to this device</span></div>
+      <button class="clear-btn" onclick="clearGame()">Clear Game</button>
+    </div>
+    <div class="log-header">
+      <span id="log-count-lbl">0 plays logged</span>
+      <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+    <div id="play-log">
+      <div class="empty-log">No plays logged yet.<br>Use the tabs above to speak your plays.</div>
+    </div>
+  </div>
+
+</div><!-- end .app -->
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+var plays = [];
+var recog = null;
+var saveTimer = null;
+var STORAGE_KEY = 'playlogger_v2';
+
+// Parsed play objects (pending confirmation)
+var pending = { offense:{}, defense:{}, st:{} };
+
+var hasSpeech = ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
+if (!hasSpeech) document.getElementById('no-support').style.display = 'block';
+
+// ── Persistence ────────────────────────────────────────────────────────────
+function loadFromStorage() {
+  try { var r = localStorage.getItem(STORAGE_KEY); if(r){ plays=JSON.parse(r); updateCounts(); } } catch(e){}
+}
+function saveToStorage() {
+  var dot=g('save-dot'), st=g('save-status');
+  if(dot) dot.classList.add('saving');
+  if(st) st.textContent='Saving...';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(plays));
+      if(dot) dot.classList.remove('saving');
+      var now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      if(st) st.textContent='Saved at '+now;
+    } catch(e){ if(st) st.textContent='Save failed'; }
+  }, 400);
+}
+function clearGame() {
+  if(!plays.length){alert('No plays to clear.');return;}
+  if(confirm('Clear all '+plays.length+' plays? Export CSV first if needed.')){ plays=[]; try{localStorage.removeItem(STORAGE_KEY);}catch(e){} updateCounts(); renderLog(); var s=g('save-status'); if(s)s.textContent='Cleared'; }
+}
+loadFromStorage();
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function g(id){ return document.getElementById(id); }
+function val(id){ var e=g(id); return e?e.value.trim():''; }
+function setEl(id, v){ var e=g(id); if(e){ e.classList.remove('filled','empty'); if(v&&v!=='—'){e.textContent=v;e.classList.add('filled');}else{e.textContent='—';e.classList.add('empty');} } }
+function setSelectVal(id, v){ var e=g(id); if(!e||!v)return; Array.from(e.options).forEach(function(o){ if(o.value===v) e.value=v; }); }
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name) {
+  var names=['offense','defense','st','log'];
+  document.querySelectorAll('.tab').forEach(function(t,i){ t.classList.toggle('active',names[i]===name); });
+  document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
+  g('sec-'+name).classList.add('active');
+  if(name==='log') renderLog();
+}
+
+// ── Edit drawer ────────────────────────────────────────────────────────────
+function toggleEdit(section) {
+  var fields=g('edit-'+section), arrow=g('arrow-'+section);
+  var open=fields.classList.toggle('open');
+  if(arrow) arrow.classList.toggle('open', open);
+}
+
+// ── Voice input ────────────────────────────────────────────────────────────
+function startVoice(section) {
+  if(!hasSpeech){ alert('Voice requires Chrome or Safari.'); return; }
+  var micId={offense:'mic-off',defense:'mic-def',st:'mic-st'}[section];
+  var labelId={offense:'mic-off-label',defense:'mic-def-label',st:'mic-st-label'}[section];
+  var transBoxId={offense:'trans-box-off',defense:'trans-box-def',st:'trans-box-st'}[section];
+  var transId={offense:'trans-off',defense:'trans-def',st:'trans-st'}[section];
+  var micEl=g(micId);
+
+  if(recog){ recog.stop(); recog=null; micEl.classList.remove('listening'); g(labelId).textContent='Tap to speak'; return; }
+
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recog=new SR(); recog.continuous=false; recog.interimResults=true; recog.lang='en-US';
+  micEl.classList.add('listening');
+  g(labelId).textContent='Listening…';
+  g(transBoxId).style.display='block';
+  g(transId).textContent='';
+
+  recog.onresult=function(e){
+    var t=''; for(var i=0;i<e.results.length;i++) t+=e.results[i][0].transcript;
+    g(transId).textContent=t;
+    if(e.results[e.results.length-1].isFinal){
+      micEl.classList.remove('listening');
+      g(labelId).textContent='Tap to speak again';
+      recog=null;
+      parseAndShow(t, section);
+    }
+  };
+  recog.onend=function(){ micEl.classList.remove('listening'); g(labelId).textContent='Tap to speak again'; recog=null; };
+  recog.onerror=function(er){ g(transId).textContent='Error: '+er.error; micEl.classList.remove('listening'); g(labelId).textContent='Tap to speak'; recog=null; };
+  recog.start();
+}
+
+// ── Parser ─────────────────────────────────────────────────────────────────
+function parseAndShow(text, section) {
+  var t=text.toLowerCase().trim();
+  var p={};
+
+  if(section==='offense'||section==='defense'){
+    // Down
+    if(/\bfirst\b/.test(t)||/\b1st\b/.test(t)) p.down='1st';
+    else if(/\bsecond\b/.test(t)||/\b2nd\b/.test(t)) p.down='2nd';
+    else if(/\bthird\b/.test(t)||/\b3rd\b/.test(t)) p.down='3rd';
+    else if(/\bfourth\b/.test(t)||/\b4th\b/.test(t)) p.down='4th';
+
+    // Distance — "and X" pattern
+    var dm=t.match(/\band\s+(\w+)/);
+    if(dm){
+      var dw=dm[1];
+      var words={'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'goal':0};
+      if(words[dw]!==undefined) p.dist=String(words[dw]);
+      else if(/^\d+$/.test(dw)) p.dist=dw;
+    }
+    // Also catch "and goal"
+    if(/and\s+goal/.test(t)) p.dist='Goal';
+
+    // Field position — "own X" or "opp X" or "opponent X"
+    var fp=t.match(/(?:own|our)\s+(\d+)/);  if(fp) p.pos='OWN '+fp[1];
+    var fp2=t.match(/(?:opp(?:onent)?|their|enemy)\s+(\d+)/); if(fp2) p.pos='OPP '+fp2[1];
+
+    // Formation
+    if(/shotgun/.test(t)) p.formation='Shotgun';
+    else if(/pistol/.test(t)) p.formation='Pistol';
+    else if(/i.?form/.test(t)) p.formation='I-Form';
+    else if(/wildcat/.test(t)) p.formation='Wildcat';
+    else if(/\bempty\b/.test(t)) p.formation='Empty';
+    else if(/\btrips\b/.test(t)) p.formation='Trips';
+    else if(/\bbunch\b/.test(t)) p.formation='Bunch';
+    else if(/singleback/.test(t)) p.formation='Singleback';
+
+    // Play type
+    if(/\bscreen\b/.test(t)) p.playType='Screen';
+    else if(/\boption\b/.test(t)) p.playType='Option';
+    else if(/\bpass\b|\bthrow\b|\bincomplete\b|\bcomplete\b|\bpicked\b/.test(t)) p.playType='Pass';
+    else if(/\brun\b|\brush\b|\bcarry\b|\bkeeper\b/.test(t)) p.playType='Run';
+    else if(/\bkneel\b/.test(t)) p.playType='Kneel';
+    else if(/\bspike\b/.test(t)) p.playType='Spike';
+    else if(/\btrick\b/.test(t)) p.playType='Trick';
+
+    // Direction
+    if(/\bleft\b/.test(t)) p.direction='Left';
+    else if(/\bright\b/.test(t)) p.direction='Right';
+    else if(/\bmiddle\b|\bcenter\b/.test(t)) p.direction='Middle';
+
+    // Yards — number before "yard(s)" or just a standalone number after play info
+    var ym=t.match(/(-?\d+)\s*(?:yards?|yds?)/);
+    if(ym) p.yds=ym[1];
+    else {
+      // Try standalone number (likely yards)
+      var nums=t.match(/\b(\d{1,3})\b/g);
+      if(nums&&nums.length){
+        // pick the last number that isn't obviously a jersey or down distance
+        var cands=nums.filter(function(n){ return parseInt(n)<=99&&parseInt(n)>=0; });
+        if(cands.length) p.yds=cands[cands.length-1];
+      }
+    }
+
+    // Result
+    if(/touchdown|\btd\b/.test(t)) p.result='Touchdown';
+    else if(/\binterception\b|\bpicked\b|\bint\b/.test(t)) p.result='Turnover-INT';
+    else if(/\bfumble\b/.test(t)) p.result='Turnover-Fumble';
+    else if(/\bsafety\b/.test(t)) p.result='Safety';
+    else if(/first down/.test(t)) p.result='1st Down';
+    else if(/\bpunt\b/.test(t)&&section==='offense') p.result='Punt';
+    else if(/field goal/.test(t)) p.result='Field Goal';
+
+    // Defensive front
+    if(/four.?man|4.?man/.test(t)) p.front='4-Man';
+    else if(/three.?man|3.?man/.test(t)) p.front='3-Man';
+    else if(/five.?man|5.?man/.test(t)) p.front='5-Man';
+
+    // Coverage
+    if(/\bzone\b/.test(t)) p.coverage='Zone';
+    else if(/\bman\b/.test(t)) p.coverage='Man';
+    else if(/\bmixed\b/.test(t)) p.coverage='Mixed';
+
+    // Blitz
+    if(/no blitz|didn'?t blitz|without blitz/.test(t)) p.blitz='No';
+    else if(/\bblitz\b/.test(t)) p.blitz='Yes';
+
+    // Player names — words starting with uppercase after transcript is title-cased
+    // Strategy: pull capitalized words not matching known keywords
+    var keywords=/^(first|second|third|fourth|1st|2nd|3rd|4th|and|the|on|in|to|of|at|run|pass|left|right|middle|center|zone|man|blitz|no|yes|our|own|opp|their|shotgun|pistol|wildcat|empty|trips|bunch|yards?|yds?|down|touchdown|fumble|interception|safety|punt|field|goal|kick|screen|option|incomplete|complete|four|three|five|man|coverage|front|middle|singleback|i|form)$/i;
+    var origWords=text.split(/\s+/);
+    var names=origWords.filter(function(w){ return /^[A-Z]/.test(w)&&!keywords.test(w)&&w.length>2; });
+    if(names.length>=2){ p.qb=names[0]; p.ball=names[1]; }
+    else if(names.length===1){ p.ball=names[0]; }
+
+    pending[section]=p;
+    showPreview(section, p);
+
+  } else {
+    // SPECIAL TEAMS parser
+    if(/kick return/.test(t)) p.stType='Kick Return';
+    else if(/punt return/.test(t)) p.stType='Punt Return';
+    else if(/onside/.test(t)) p.stType='Onside Kick';
+    else if(/kickoff|kick off/.test(t)) p.stType='Kickoff';
+    else if(/\bpunt\b/.test(t)) p.stType='Punt';
+    else if(/field goal|fg/.test(t)) p.stType='Field Goal Attempt';
+    else if(/\bpat\b|extra point/.test(t)) p.stType='PAT Attempt';
+
+    if(/our ball|we receive|we kick/.test(t)) p.possession='Yes';
+    else if(/their ball|they receive|they kick/.test(t)) p.possession='No';
+
+    if(/touchback/.test(t)) p.touchback='Yes';
+    if(/fair catch/.test(t)) p.fairCatch='Yes';
+    if(/\bblocked\b/.test(t)) p.fgResult='Blocked';
+    else if(/no good|missed|wide/.test(t)) p.fgResult='No Good';
+    else if(/\bgood\b/.test(t)) p.fgResult='Good';
+    else if(/\bfake\b/.test(t)) p.fgResult='Fake';
+    if(/\bpenalty\b/.test(t)) p.penalty='Yes';
+
+    // Distances — "X yard" patterns
+    var allNums=t.match(/(\d+)\s*(?:yards?|yds?)/g)||[];
+    if(allNums.length>=1) p.kickDist=allNums[0].match(/\d+/)[0];
+    if(allNums.length>=2) p.retYds=allNums[1].match(/\d+/)[0];
+    // FG distance
+    var fgm=t.match(/(\d+)\s*(?:yard)?\s*(?:field goal|fg|pat)/);
+    if(fgm) p.fgDist=fgm[1];
+
+    pending[section]=p;
+    showPreviewST(p);
+  }
+}
+
+function showPreview(section, p) {
+  var pre='p-'+section+'-';
+  setEl(pre+'down',  p.down);
+  setEl(pre+'dist',  p.dist ? p.dist+' yds' : null);
+  setEl(pre+'pos',   p.pos);
+  setEl(pre+'form',  p.formation);
+  setEl(pre+'type',  p.playType);
+  setEl(pre+'dir',   p.direction);
+  setEl(pre+'yds',   p.yds!==undefined ? p.yds+' yds' : null);
+  setEl(pre+'res',   p.result);
+  setEl(pre+'qb',    p.qb);
+  setEl(pre+'ball',  p.ball);
+  setEl(pre+'front', p.front);
+  setEl(pre+'cov',   p.coverage);
+  setEl(pre+'blitz', p.blitz);
+  setEl(pre+'tack',  p.tackler);
+  // Pre-fill edit fields
+  var ep='e-'+section+'-';
+  setSelectVal(ep+'down',  p.down);
+  if(p.dist) { var de=g(ep+'dist'); if(de) de.value=p.dist; }
+  if(p.pos)  { var pe=g(ep+'pos');  if(pe) pe.value=p.pos; }
+  setSelectVal(ep+'form',  p.formation);
+  setSelectVal(ep+'type',  p.playType);
+  setSelectVal(ep+'dir',   p.direction);
+  if(p.yds!==undefined){ var ye=g(ep+'yds'); if(ye) ye.value=p.yds; }
+  if(p.qb)  { var qe=g(ep+'qb');   if(qe) qe.value=p.qb; }
+  if(p.ball){ var be=g(ep+'ball');  if(be) be.value=p.ball; }
+  setSelectVal(ep+'front', p.front);
+  setSelectVal(ep+'cov',   p.coverage);
+  setSelectVal(ep+'blitz', p.blitz);
+  setSelectVal(ep+'res',   p.result);
+  g('preview-'+section).style.display='block';
+}
+
+function showPreviewST(p) {
+  setEl('p-st-type',    p.stType);
+  setEl('p-st-poss',    p.possession);
+  setEl('p-st-kdist',   p.kickDist ? p.kickDist+' yds' : null);
+  setEl('p-st-ret',     p.retYds!==undefined ? p.retYds+' yds' : null);
+  setEl('p-st-fgdist',  p.fgDist ? p.fgDist+' yds' : null);
+  setEl('p-st-fgres',   p.fgResult);
+  setEl('p-st-tb',      p.touchback);
+  setEl('p-st-fc',      p.fairCatch);
+  setEl('p-st-pen',     p.penalty);
+  setEl('p-st-ourk',    p.ourKicker);
+  setEl('p-st-theirret',p.theirRet);
+  setEl('p-st-notes',   p.notes);
+  setSelectVal('e-st-type',  p.stType);
+  setSelectVal('e-st-poss',  p.possession);
+  setSelectVal('e-st-fgres', p.fgResult);
+  setSelectVal('e-st-tb',    p.touchback);
+  setSelectVal('e-st-fc',    p.fairCatch);
+  setSelectVal('e-st-pen',   p.penalty);
+  if(p.kickDist){ var e=g('e-st-kdist'); if(e) e.value=p.kickDist; }
+  if(p.retYds)  { var e=g('e-st-ret');   if(e) e.value=p.retYds; }
+  if(p.fgDist)  { var e=g('e-st-fgdist');if(e) e.value=p.fgDist; }
+  g('preview-st').style.display='block';
+}
+
+// ── Log a play (merge parsed + any edits) ─────────────────────────────────
+function logPlay(section) {
+  var ep='e-'+section+'-';
+  var qtr=val('qtr-top');
+  var ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  var play={type:section, qtr:qtr, ts:ts};
+
+  if(section==='offense'||section==='defense'){
+    play.down      = val(ep+'down')  || pending[section].down  || '';
+    play.dist      = val(ep+'dist')  || pending[section].dist  || '';
+    play.pos       = val(ep+'pos')   || pending[section].pos   || '';
+    play.formation = val(ep+'form')  || pending[section].formation || '';
+    play.playType  = val(ep+'type')  || pending[section].playType  || '';
+    play.direction = val(ep+'dir')   || pending[section].direction || '';
+    play.yds       = val(ep+'yds')   !== '' ? val(ep+'yds') : (pending[section].yds !== undefined ? pending[section].yds : '');
+    play.qb        = val(ep+'qb')    || pending[section].qb   || '';
+    play.ball      = val(ep+'ball')  || pending[section].ball  || '';
+    play.front     = val(ep+'front') || pending[section].front || '';
+    play.coverage  = val(ep+'cov')   || pending[section].coverage || '';
+    play.blitz     = val(ep+'blitz') || pending[section].blitz || '';
+    play.result    = val(ep+'res')   || pending[section].result || '';
+    play.tackler   = val(ep+'tack')  || pending[section].tackler || '';
+    play.notes     = val(ep+'notes') || '';
+  } else {
+    play.stType    = val('e-st-type')    || pending.st.stType    || '';
+    play.possession= val('e-st-poss')    || pending.st.possession|| '';
+    play.ourKicker = val('e-st-ourk')    || pending.st.ourKicker || '';
+    play.theirRet  = val('e-st-theirret')|| pending.st.theirRet  || '';
+    play.kickDist  = val('e-st-kdist')   || pending.st.kickDist  || '';
+    play.retYds    = val('e-st-ret')     || pending.st.retYds    || '';
+    play.fgDist    = val('e-st-fgdist')  || pending.st.fgDist    || '';
+    play.fgResult  = val('e-st-fgres')   || pending.st.fgResult  || '';
+    play.touchback = val('e-st-tb')      || pending.st.touchback || '';
+    play.fairCatch = val('e-st-fc')      || pending.st.fairCatch || '';
+    play.penalty   = val('e-st-pen')     || pending.st.penalty   || '';
+    play.notes     = val('e-st-notes')   || pending.st.notes     || '';
+  }
+
+  plays.unshift(play);
+  saveToStorage();
+  updateCounts();
+
+  if(section==='offense') clearOffense();
+  else if(section==='defense') clearDefense();
+  else clearST();
+
+  switchTab('log');
+}
+
+// ── Clear pending ──────────────────────────────────────────────────────────
+function clearSection(section) {
+  pending[section]={};
+  g('preview-'+section).style.display='none';
+  g('trans-box-'+section).style.display='none';
+  var tEl=g('trans-'+section); if(tEl) tEl.textContent='';
+  var ef=g('edit-'+section); if(ef) ef.classList.remove('open');
+  var arr=g('arrow-'+section); if(arr) arr.classList.remove('open');
+  // Clear edit fields
+  var ep='e-'+section+'-';
+  var ids=section!=='st'
+    ?['down','dist','pos','form','type','dir','yds','qb','ball','front','cov','blitz','res','tack','notes']
+    :['type','poss','ourk','theirret','kdist','ret','fgdist','fgres','tb','fc','pen','notes'];
+  ids.forEach(function(id){ var e=g(ep+id); if(e){ e.tagName==='SELECT'?e.selectedIndex=0:(e.value=''); } });
+}
+function clearOffense(){ clearSection('offense'); }
+function clearDefense(){ clearSection('defense'); }
+function clearST()     { clearSection('st'); }
+
+// ── Update counts ──────────────────────────────────────────────────────────
+function updateCounts() {
+  var off=plays.filter(function(p){return p.type==='offense';}).length;
+  var def=plays.filter(function(p){return p.type==='defense';}).length;
+  var st =plays.filter(function(p){return p.type==='st';}).length;
+  g('stat-off').textContent=off; g('stat-def').textContent=def; g('stat-st').textContent=st;
+  g('log-count-tab').textContent=plays.length;
+  g('log-count-lbl').textContent=plays.length+' play'+(plays.length!==1?'s':'')+' logged';
+}
+
+// ── Render log ─────────────────────────────────────────────────────────────
+function renderLog() {
+  var el=g('play-log');
+  if(!plays.length){ el.innerHTML='<div class="empty-log">No plays logged yet.<br>Use the tabs above to speak your plays.</div>'; return; }
+  el.innerHTML=plays.map(function(p,i){
+    var num=plays.length-i;
+    var badge=p.type==='offense'?'<span class="badge badge-off">OFF</span>':p.type==='defense'?'<span class="badge badge-def">DEF</span>':'<span class="badge badge-st">ST</span>';
+    var summary='';
+    if(p.type==='offense'||p.type==='defense'){
+      var parts=[p.down&&p.dist?p.down+' & '+p.dist:(p.down||''), p.formation, p.playType, p.direction, p.yds!==''?p.yds+' yds':'', p.result].filter(Boolean);
+      summary=parts.join(' · ');
+      var dp=[p.front,p.coverage,p.blitz==='Yes'?'Blitz':''].filter(Boolean);
+      if(dp.length) summary+='<br><span style="color:var(--text3);font-size:11px">'+dp.join(', ')+'</span>';
+      if(p.qb||p.ball) summary+='<br><span style="color:var(--text3);font-size:11px">'+(p.qb&&p.ball?p.qb+' → '+p.ball:(p.qb||p.ball))+'</span>';
+    } else {
+      var parts=[p.stType, p.kickDist?p.kickDist+'yd kick':'', p.retYds?p.retYds+'yd ret':'', p.fgResult, p.touchback==='Yes'?'Touchback':'', p.fairCatch==='Yes'?'Fair Catch':''].filter(Boolean);
+      summary=parts.join(' · ');
+    }
+    if(p.notes) summary+='<br><span style="color:var(--text3);font-size:11px;font-style:italic">'+p.notes+'</span>';
+    return '<div class="play-card"><div class="play-meta">'+badge+' #'+num+' · '+p.qtr+' · '+p.ts+'</div><div class="play-summary">'+summary+'</div><button class="del-btn" onclick="deletePlay('+i+')">×</button></div>';
+  }).join('');
+}
+
+function deletePlay(i){
+  if(confirm('Delete play #'+(plays.length-i)+'?')){ plays.splice(i,1); saveToStorage(); updateCounts(); renderLog(); }
+}
+
+// ── Export CSV ─────────────────────────────────────────────────────────────
+function exportCSV(){
+  if(!plays.length){alert('No plays to export.');return;}
+  var h=['#','Type','Quarter','Time','Down','Distance','Field Position','Formation','Play Type','Direction','Yards','QB','Ball Carrier/Receiver','Def Front','Coverage','Blitz','Result','Tackler','ST Type','ST Possession','Our Kicker','Their Returner','Kick Dist','Return Yds','FG Dist','FG Result','Touchback','Fair Catch','Penalty','Notes'];
+  var rows=[h];
+  plays.forEach(function(p,i){
+    rows.push([plays.length-i,p.type.toUpperCase(),p.qtr||'',p.ts||'',p.down||'',p.dist||'',p.pos||'',p.formation||'',p.playType||p.stType||'',p.direction||'',p.yds||'',p.qb||'',p.ball||'',p.front||'',p.coverage||'',p.blitz||'',p.result||'',p.tackler||'',p.stType||'',p.possession||'',p.ourKicker||'',p.theirRet||'',p.kickDist||'',p.retYds||'',p.fgDist||'',p.fgResult||'',p.touchback||'',p.fairCatch||'',p.penalty||'',(p.notes||'').replace(/"/g,'""')]);
+  });
+  var csv=rows.map(function(r){return r.map(function(c){return'"'+c+'"';}).join(',');}).join('\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download='play_log_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+
+// ── Stopwatch ──────────────────────────────────────────────────────────────
+var swRunning=false, swStart_t=null, swElapsed=0, swRaf=null;
+function toggleSW(){
+  var p=g('sw-panel'), b=g('sw-toggle');
+  var open=p.style.display!=='none';
+  p.style.display=open?'none':'block';
+  b.style.background=open?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.35)';
+  if(open&&swRunning) swReset();
+}
+function swStart(){
+  if(swRunning)return;
+  swRunning=true; swStart_t=performance.now()-swElapsed;
+  g('sw-start').disabled=true; g('sw-start').style.background='#444';
+  g('sw-stop').disabled=false; g('sw-stop').style.background='#cc0000';
+  g('sw-status').textContent='Running — tap STOP at the whistle';
+  g('sw-stamp').style.display='none';
+  (function tick(){ if(!swRunning)return; swElapsed=performance.now()-swStart_t; g('sw-display').innerHTML=(swElapsed/1000).toFixed(1)+'<span style="font-size:20px;">s</span>'; swRaf=requestAnimationFrame(tick); })();
+}
+function swStop(){
+  if(!swRunning)return; swRunning=false; cancelAnimationFrame(swRaf);
+  var s=(swElapsed/1000).toFixed(1)+'s';
+  g('sw-start').disabled=false; g('sw-start').style.background='var(--purple)';
+  g('sw-stop').disabled=true;   g('sw-stop').style.background='#555';
+  g('sw-status').textContent='Stamped. Start again for next play.';
+  g('sw-stamp').textContent='✓ '+s+' stamped'; g('sw-stamp').style.display='block';
+  swElapsed=0;
+}
+function swReset(){
+  swRunning=false; cancelAnimationFrame(swRaf); swElapsed=0; swStart_t=null;
+  g('sw-display').innerHTML='0.0<span style="font-size:20px;">s</span>';
+  g('sw-status').textContent='Tap START at the snap';
+  g('sw-start').disabled=false; g('sw-start').style.background='var(--purple)';
+  g('sw-stop').disabled=true;   g('sw-stop').style.background='#555';
+  g('sw-stamp').style.display='none';
+}
+</script>
+<script>
+// Register service worker for offline support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js')
+      .then(function(reg) {
+        console.log('SW registered, scope:', reg.scope);
+      })
+      .catch(function(err) {
+        console.log('SW registration failed:', err);
+      });
+  });
+}
+</script>
+</body>
+</html>
