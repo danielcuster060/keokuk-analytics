@@ -664,7 +664,37 @@ function startVoice(section) {
       if(ef&&!ef.classList.contains('open')){ ef.classList.add('open'); if(arr) arr.classList.add('open'); }
     }
   };
-  recog.start();
+  // Request mic permission explicitly first — this shows the iOS permission
+  // prompt and prevents the service-not-allowed error on Safari.
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({audio:true})
+      .then(function(stream){
+        // Permission granted — release the stream and start recognition
+        stream.getTracks().forEach(function(t){t.stop();});
+        if(recog){ try{ recog.start(); }catch(e){} }
+      })
+      .catch(function(){
+        // Microphone access was denied at the OS level
+        if(!recog){ return; }
+        micEl.classList.remove('listening');
+        g(labelId).textContent='Tap to speak';
+        recog=null;
+        var isChrome=/CriOS|Chrome/.test(navigator.userAgent);
+        var msg=isChrome
+          ?'Microphone access was denied.\n\nTap the lock icon in your browser\'s address bar and allow the microphone, then try again.\n\nOr fill in the play using the form below:'
+          :'Microphone access was denied.\n\nTo fix it:\nSettings → Privacy & Security → Microphone\n→ turn on Safari\n\nOr fill in the play using the form below:';
+        g(transBoxId).style.display='block';
+        g(transId).textContent=msg;
+        g(labelId).textContent='Tap to try again';
+        var sid=section==='offense'?'off':section==='defense'?'def':'st';
+        g('preview-'+sid).style.display='block';
+        var ef=g('edit-'+sid),arr=g('arrow-'+sid);
+        if(ef&&!ef.classList.contains('open')){ ef.classList.add('open'); if(arr) arr.classList.add('open'); }
+      });
+  } else {
+    // Fallback for browsers without getUserMedia
+    try{ recog.start(); }catch(e){}
+  }
 }
 
 // ── Parser ─────────────────────────────────────────────────────────────────
