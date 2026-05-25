@@ -1,6 +1,6 @@
 // Keokuk Football Analytics — Service Worker
 // Bumping CACHE_NAME forces a refresh when you upload a new version
-var CACHE_NAME = "kfk-analytics-v4";
+var CACHE_NAME = "kfk-analytics-v5";
 
 var ASSETS = [
   "./index.html",
