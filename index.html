@@ -66,7 +66,7 @@
 
   /* TRANSCRIPT BOX */
   .transcript-box { width:100%; margin-top:14px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px 14px; min-height:60px; }
-  .transcript-raw { font-size:14px; color:var(--text); line-height:1.6; min-height:22px; font-style:italic; }
+  .transcript-raw { font-size:14px; color:var(--text); line-height:1.6; min-height:22px; font-style:italic; white-space:pre-wrap; }
   .transcript-raw.empty { color:var(--text3); font-style:normal; }
 
   /* PARSED PREVIEW */
@@ -639,9 +639,14 @@ function startVoice(section) {
     micEl.classList.remove('listening');
     recog=null;
     if(er.error==='aborted'){ g(labelId).textContent='Tap to speak'; return; }
+    var isChrome=/CriOS|Chrome/.test(navigator.userAgent);
     var msgs={
-      'service-not-allowed':'Voice needs an internet connection on Chrome. For offline use, open in Safari on iPhone/iPad instead.\n\nFill in the play using the form below:',
-      'not-allowed':'Microphone access was denied. Tap the lock icon in your browser\'s address bar and allow the microphone, then try again.\n\nOr fill in the play using the form below:',
+      'service-not-allowed': isChrome
+        ? 'Voice requires an internet connection on Chrome.\n\nFor offline use, open this app in Safari on an iPhone or iPad instead.\n\nOr fill in the play using the form below:'
+        : 'Dictation is turned off on this device.\n\nTo fix it:\n1. Open the iPhone/iPad Settings app\n2. Tap General → Keyboard\n3. Turn ON "Enable Dictation"\n4. Come back here and reload the page\n\nOr fill in the play using the form below:',
+      'not-allowed': isChrome
+        ? 'Microphone access was denied. Tap the lock icon in your browser\'s address bar and allow the microphone, then try again.\n\nOr fill in the play using the form below:'
+        : 'Microphone access was denied.\n\nTo fix it:\n1. Open the iPhone/iPad Settings app\n2. Tap Safari\n3. Tap Microphone → Allow\n\nOr fill in the play using the form below:',
       'network':'Cannot reach the speech service — check your connection.\n\nFill in the play using the form below:',
       'no-speech':'No speech detected — tap the mic and try speaking again.'
     };
